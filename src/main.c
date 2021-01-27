@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
 	// Open a window and assign a raycast renderer to it
 	struct raycaster_window *window = window_create(window_title, window_width, window_height, true, false);
 	struct raycaster_renderer *renderer = renderer_create(window_width, window_height, window_aspect, fov, pixelation, wallheight);
-	window_set_resizable_renderer(window, renderer);
+	window_set_renderer(window, renderer);
 
 	// Process initial resizing events and cursor starting position
 	window_update(window);
@@ -115,8 +115,7 @@ int main(int argc, char **argv) {
 		// Render
 		//window_set_as_context(window);
 		renderer_clear();
-		renderer_draw_floorceiling(renderer, map, map_width, map_height, player_x, player_y, player_r);
-		renderer_draw_walls(renderer, map, map_width, map_height, player_x, player_y, player_r);
+		renderer_draw(renderer, map, map_width, map_height, player_x, player_y, player_r);
 		window_render(window);
 	}
 

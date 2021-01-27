@@ -5,18 +5,11 @@
 #include <glad/glad.h>
 
 struct raycaster_renderer {
-	// Settings
-	int width, height;
-	double aspect;
-	double fov;
-	int pixelation;
-	double wallheight;
-	// OpenGL buffers
-	int num_columns, num_rows;
-	unsigned column_vbo, column_ibo, column_vao, column_shader; // walls
-	unsigned fc_vbo, fc_ibo, fc_vao, fc_texture, fc_shader;     // floorceiling
-	double *column_vertices;  // num_columns * 4 * 8 doubles
-	unsigned char *fc_pixels; // num_columns * num_rows * 4 bytes
+	int width, height, pixelation;
+	double aspect, fov, wallheight;
+	unsigned vao, vbo, ibo;
+	unsigned tex, double_pbo[2], shader;
+	int current_pbo;
 };
 
 struct ray_result {
@@ -26,12 +19,16 @@ struct ray_result {
 };
 
 static struct ray_result renderer_internal_raycast(const int *const map, int map_width, int map_height, double x, double y, double a);
-static void renderer_internal_resize_buffers(struct raycaster_renderer *renderer);
+static void renderer_internal_resize(struct raycaster_renderer *renderer);
 static unsigned renderer_internal_create_shader(const char *const filepath, GLenum shader_type);
 static unsigned renderer_internal_create_shader_program(unsigned shaders[], int count);
 static void renderer_internal_opengl_message_callback(GLenum source, GLenum type, unsigned id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
 
 struct raycaster_renderer *renderer_create(int width, int height, double aspect, double fov, int pixelation, double wallheight) {
+
+	struct raycaster_renderer *renderer = malloc(sizeof *renderer);
+	// TODO: assert malloc
+	*renderer = (struct raycaster_renderer) { width, height, pixelation, aspect, fov, wallheight };
 
 	// Load OpenGL functions for the current context
 	gladLoadGL();
@@ -47,54 +44,45 @@ struct raycaster_renderer *renderer_create(int width, int height, double aspect,
 	glDebugMessageCallback(renderer_internal_opengl_message_callback, 0);
 	glClearColor(0.0, 0.0, 0.0, 0.0);
 
-	// Allocate renderer
-	struct raycaster_renderer *renderer = malloc(sizeof *renderer);
-	// TODO: assert malloc
-	*renderer = (struct raycaster_renderer) {
-		width, height, aspect, fov, pixelation, wallheight,
-		width / pixelation, height / pixelation
-	};
+	// Initialize the OpenGL buffers for software renderering
+	glGenVertexArrays(1, &renderer->vao);
+	glBindVertexArray(renderer->vao);
 
-	// Column buffers
-	glGenBuffers(1, &renderer->column_vbo);
-	glGenBuffers(1, &renderer->column_ibo);
-	glGenVertexArrays(1, &renderer->column_vao);
-	unsigned column_shaders[2];
-	column_shaders[0] = renderer_internal_create_shader("res/shaders/column.vert", GL_VERTEX_SHADER);
-	column_shaders[1] = renderer_internal_create_shader("res/shaders/column.frag", GL_FRAGMENT_SHADER);
-	renderer->column_shader = renderer_internal_create_shader_program(column_shaders, 2);
-	glDeleteShader(column_shaders[0]);
-	glDeleteShader(column_shaders[1]);
-
-	// Floorceiling buffers
-	glGenBuffers(1, &renderer->fc_vbo);
-	glGenBuffers(1, &renderer->fc_ibo);
-	glGenTextures(1, &renderer->fc_texture);
-	glGenVertexArrays(1, &renderer->fc_vao);
-	glBindVertexArray(renderer->fc_vao);
-	glBindBuffer(GL_ARRAY_BUFFER, renderer->fc_vbo);
-	double fc_vertices[] = {
+	// Create the quad VBO
+	double quad_vertices[] = {
 		 1.0,  1.0, 1.0, 1.0,
 		 1.0, -1.0, 1.0, 0.0,
 		-1.0, -1.0, 0.0, 0.0,
 		-1.0,  1.0, 0.0, 1.0
 	};
-	glBufferData(GL_ARRAY_BUFFER, sizeof fc_vertices, fc_vertices, GL_STATIC_DRAW);
+	glGenBuffers(1, &renderer->vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof quad_vertices, quad_vertices, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 2, GL_DOUBLE, GL_FALSE, 4 * sizeof (double), (void *) 0);
 	glVertexAttribPointer(1, 2, GL_DOUBLE, GL_FALSE, 4 * sizeof (double), (void *) (2 * sizeof (double)));
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
-	unsigned quad_indices[] = { 0, 1, 3, 1, 2, 3 };
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->fc_ibo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof quad_indices, quad_indices, GL_STATIC_DRAW);
-	glBindVertexArray(0);
-	unsigned fc_shaders[2];
-	fc_shaders[0] = renderer_internal_create_shader("res/shaders/floorceiling.vert", GL_VERTEX_SHADER);
-	fc_shaders[1] = renderer_internal_create_shader("res/shaders/floorceiling.frag", GL_FRAGMENT_SHADER);
-	renderer->fc_shader = renderer_internal_create_shader_program(fc_shaders, 2);
-	glDeleteShader(fc_shaders[0]);
-	glDeleteShader(fc_shaders[1]);
 
+	// Create the quad IBO
+	unsigned quad_indices[] = { 0, 1, 3, 1, 2, 3 };
+	glGenBuffers(1, &renderer->ibo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ibo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof quad_indices, quad_indices, GL_STATIC_DRAW);
+
+	// Create the quad double PBOs and their texture object
+	glGenBuffers(2, renderer->double_pbo);
+	glGenTextures(1, &renderer->tex);
+
+	// Setup the shader
+	unsigned shaders[2];
+	shaders[0] = renderer_internal_create_shader("res/shaders/base.vert", GL_VERTEX_SHADER);
+	shaders[1] = renderer_internal_create_shader("res/shaders/base.frag", GL_FRAGMENT_SHADER);
+	renderer->shader = renderer_internal_create_shader_program(shaders, 2);
+	glDeleteShader(shaders[0]);
+	glDeleteShader(shaders[1]);
+
+	glBindVertexArray(0);
+	renderer_internal_resize(renderer);
 	return renderer;
 }
 
@@ -115,10 +103,8 @@ void renderer_set_dimensions(struct raycaster_renderer *renderer, int width, int
 
 	renderer->width = w;
 	renderer->height = h;
-	renderer->num_columns = w / renderer->pixelation;
-	renderer->num_rows = h / renderer->pixelation;
 	glViewport(x, y, w, h);
-	renderer_internal_resize_buffers(renderer);
+	renderer_internal_resize(renderer);
 }
 
 void renderer_set_fov(struct raycaster_renderer *renderer, double fov) {
@@ -126,27 +112,42 @@ void renderer_set_fov(struct raycaster_renderer *renderer, double fov) {
 }
 
 void renderer_set_pixelation(struct raycaster_renderer *renderer, int pixelation) {
-	renderer->num_columns = renderer->width / pixelation;
-	renderer->num_rows = renderer->height / pixelation;
 	renderer->pixelation = pixelation;
-	renderer_internal_resize_buffers(renderer);
+	renderer_internal_resize(renderer);
 }
 
 void renderer_set_wallheight(struct raycaster_renderer *renderer, double wallheight) {
 	renderer->wallheight = wallheight;
 }
 
-void renderer_draw_floorceiling(struct raycaster_renderer *renderer, const int *const map, int map_width, int map_height, double x, double y, double r) {
+void renderer_draw(struct raycaster_renderer *renderer, const int *const map, int map_width, int map_height, double x, double y, double r) {
+	int num_columns = renderer->width / renderer->pixelation;
+	int num_rows = renderer->height / renderer->pixelation;
 
-	// Compute each pixels new color in fc_pixels from this view
+	// Render with the current PBO
+	glUseProgram(renderer->shader);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, renderer->double_pbo[renderer->current_pbo]);
+    glBindTexture(GL_TEXTURE_2D, renderer->tex);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, num_columns, num_rows, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glBindVertexArray(renderer->vao);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+	// Flip PBOs and draw to the new current PBO
+	renderer->current_pbo ^= 1;
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, renderer->double_pbo[renderer->current_pbo]);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, 4 * sizeof (unsigned char) * num_columns * num_rows, NULL, GL_STREAM_DRAW);
+	unsigned char *pixels = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+
+	// Draw floor and ceiling
 	double ray_left_rx = cos(r) + sin(r) * renderer->fov, ray_left_ry = sin(r) - cos(r) * renderer->fov;
 	double ray_right_rx = cos(r) - sin(r) * renderer->fov, ray_right_ry = sin(r) + cos(r) * renderer->fov;
-	for (int row = 0; row < renderer->num_rows / 2; row++) {
-		double row_dist = renderer->wallheight * renderer->num_rows / (renderer->num_rows - 2.0 * row);
+	for (int row = 0; row < num_rows / 2; row++) {
+		double row_dist = renderer->wallheight * num_rows / (num_rows - 2.0 * row);
 		row_dist *= 1.0 / renderer->fov;
 
-		for (int column = 0; column < renderer->num_columns; column++) {
-			double angle = (double)column / renderer->num_columns;
+		for (int column = 0; column < num_columns; column++) {
+			double angle = (double)column / num_columns;
 			double xtile = x + row_dist * (ray_left_rx + angle * (ray_right_rx - ray_left_rx));
 			double ytile = y + row_dist * (ray_left_ry + angle * (ray_right_ry - ray_left_ry));
 
@@ -160,120 +161,79 @@ void renderer_draw_floorceiling(struct raycaster_renderer *renderer, const int *
 			unsigned char ceiling_color_g = 0xff * checkerboard;
 			unsigned char ceiling_color_b = 0x00;
 
-			int buffer_index = 4 * (row * renderer->num_columns + column);
-			renderer->fc_pixels[buffer_index + 0] = floor_color_r;
-			renderer->fc_pixels[buffer_index + 1] = floor_color_g;
-			renderer->fc_pixels[buffer_index + 2] = floor_color_b;
-			renderer->fc_pixels[buffer_index + 3] = 0xff;
+			int pixels_index = 4 * (row * num_columns + column);
+			pixels[pixels_index + 0] = floor_color_r;
+			pixels[pixels_index + 1] = floor_color_g;
+			pixels[pixels_index + 2] = floor_color_b;
+			pixels[pixels_index + 3] = 0xff;
 
-			buffer_index = 4 * ((renderer->num_rows - row - 1) * renderer->num_columns + column);
-			renderer->fc_pixels[buffer_index + 0] = ceiling_color_r;
-			renderer->fc_pixels[buffer_index + 1] = ceiling_color_g;
-			renderer->fc_pixels[buffer_index + 2] = ceiling_color_b;
-			renderer->fc_pixels[buffer_index + 3] = 0xff;
+			pixels_index = 4 * ((num_rows - row - 1) * num_columns + column);
+			pixels[pixels_index + 0] = ceiling_color_r;
+			pixels[pixels_index + 1] = ceiling_color_g;
+			pixels[pixels_index + 2] = ceiling_color_b;
+			pixels[pixels_index + 3] = 0xff;
 		}
 	}
 
-	// Draw floor and ceiling by overwriting fc_texture with fc_pixels and
-	// drawing a textured quad over the viewpoint
-	glUseProgram(renderer->fc_shader);
-	glBindTexture(GL_TEXTURE_2D, renderer->fc_texture);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, renderer->num_columns, renderer->num_rows, GL_RGBA, GL_UNSIGNED_BYTE, renderer->fc_pixels);
-	glBindVertexArray(renderer->fc_vao);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-	glBindVertexArray(0);
-}
-
-void renderer_draw_walls(struct raycaster_renderer *renderer, const int *const map, int map_width, int map_height, double x, double y, double r) {
-
-	// Compute the wall heights for the new column_vertices
-	double column_width = 2.0 / renderer->num_columns;
-	for (int column = 0; column < renderer->num_columns; column++) {
-		double screen_x = (2.0 * column / renderer->num_columns) - 1;
+	// Draw walls
+	for (int column = 0; column < num_columns; column++) {
 
 		// Find distance from nearest wall to camera plane
-		double ray_offset = screen_x * renderer->fov;
+		double ray_offset = ((2.0 * column / num_columns) - 1) * renderer->fov;
 		double ray_rx = cos(r) - sin(r) * ray_offset;
 		double ray_ry = sin(r) + cos(r) * ray_offset;
 		struct ray_result hit = renderer_internal_raycast(map, map_width, map_height, x, y, atan2(ray_ry, ray_rx));
 		hit.distance *= 1 / sqrt(ray_rx * ray_rx + ray_ry * ray_ry);
 
+		// Determine length and y position of this column
+		int line_length = num_rows * renderer->wallheight / (hit.distance * renderer->fov);
+		if (line_length > num_rows)
+			line_length = num_rows;
+		int line_height = (num_rows - line_length) / 2;
+
 		// TODO: get color and texture info about hit.wall
-		double wall_color_r = 1.0 * (hit.wall % 3);
-		double wall_color_g = 1.0 * (hit.wall % 4);
-		double wall_color_b = 1.0 * (hit.wall % 5);
+		int pixels_index = 4 * (line_height * num_columns + column);
+		for (int i = 0; i < line_length; i++) {
+			pixels[pixels_index + 0] = 0xff * (hit.wall % 3);
+			pixels[pixels_index + 1] = 0xff * (hit.wall % 4);
+			pixels[pixels_index + 2] = 0xff * (hit.wall % 5);
+			pixels[pixels_index + 3] = 0xff;
+			pixels_index += num_columns * 4;
+		}
 
-		// Determine new vertices for this column
-		double line_height = renderer->wallheight / hit.distance;
-		line_height *= 1.0 / renderer->fov;
-		line_height = (int)(line_height * renderer->num_rows) / (double)renderer->num_rows;
-		double new_vertices[4 * 8] = {
-			screen_x,                line_height,  wall_color_r, wall_color_g, wall_color_b, 1.00, 0.00, 0.00,
-			screen_x,                -line_height, wall_color_r, wall_color_g, wall_color_b, 1.00, 0.00, 0.00,
-			screen_x + column_width, -line_height, wall_color_r, wall_color_g, wall_color_b, 1.00, 0.00, 0.00,
-			screen_x + column_width, line_height,  wall_color_r, wall_color_g, wall_color_b, 1.00, 0.00, 0.00
-		};
-
-		// Write new_vertices to column_vertices
-		for (int i = 0; i < 4 * 8; i++)
-			renderer->column_vertices[column * 4 * 8 + i] = new_vertices[i];
+		// TODO: fill z-buffer here
 	}
 
-	// Draw the new column_vertices
-	glUseProgram(renderer->column_shader);
-	glNamedBufferSubData(renderer->column_vbo, 0, 4 * 8 * sizeof (double) * renderer->num_columns, renderer->column_vertices);
-	glBindVertexArray(renderer->column_vao);
-	glDrawElements(GL_TRIANGLES, 6 * renderer->num_columns, GL_UNSIGNED_INT, 0);
-	glBindVertexArray(0);
+	glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
 void renderer_destroy(struct raycaster_renderer *renderer) {
-	glDeleteBuffers(1, &renderer->column_vbo);
-	glDeleteBuffers(1, &renderer->column_ibo);
-	glDeleteVertexArrays(1, &renderer->column_vao);
-	glDeleteProgram(renderer->column_shader);
-	glDeleteBuffers(1, &renderer->fc_vbo);
-	glDeleteBuffers(1, &renderer->fc_ibo);
-	glDeleteTextures(1, &renderer->fc_texture);
-	glDeleteVertexArrays(1, &renderer->fc_vao);
-	glDeleteProgram(renderer->fc_shader);
-	free(renderer->column_vertices);
-	free(renderer->fc_pixels);
+	glDeleteVertexArrays(1, &renderer->vao);
+	glDeleteBuffers(1, &renderer->vbo);
+	glDeleteBuffers(1, &renderer->ibo);
+	glDeleteBuffers(2, renderer->double_pbo);
+	glDeleteTextures(1, &renderer->tex);
+	glDeleteProgram(renderer->shader);
 }
 
-static void renderer_internal_resize_buffers(struct raycaster_renderer *renderer) {
+static void renderer_internal_resize(struct raycaster_renderer *renderer) {
+	int num_columns = renderer->width / renderer->pixelation;
+	int num_rows = renderer->height / renderer->pixelation;
 
-	// Allocate and initialize the column buffers for this new resolution
-	renderer->column_vertices = realloc(renderer->column_vertices, 4 * 8 * sizeof (double) * renderer->num_columns);
-	glBindVertexArray(renderer->column_vao);
-	// Setup new column_vbo
-	glBindBuffer(GL_ARRAY_BUFFER, renderer->column_vbo);
-	glBufferData(GL_ARRAY_BUFFER, 4 * 8 * sizeof (double) * renderer->num_columns, NULL, GL_DYNAMIC_DRAW);
-	glVertexAttribPointer(0, 2, GL_DOUBLE, GL_FALSE, 8 * sizeof (double), (void *) 0);
-	glVertexAttribPointer(1, 4, GL_DOUBLE, GL_FALSE, 8 * sizeof (double), (void *) (2 * sizeof (double))); // TODO: colors don't need double types - unsigned char will do
-	glVertexAttribPointer(2, 2, GL_DOUBLE, GL_FALSE, 8 * sizeof (double), (void *) (6 * sizeof (double)));
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
-	glEnableVertexAttribArray(2);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	// Setup new column_ibo
-	unsigned indices[6 * renderer->num_columns];
-	unsigned quad_indices[6] = { 0, 1, 3, 1, 2, 3 };
-	for (int i = 0; i < renderer->num_columns; i++)
-		for (int j = 0; j < 6; j++)
-			indices[i * 6 + j] = i * 4 + quad_indices[j];
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->column_ibo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices, indices, GL_STATIC_DRAW);
-	// Done!
-	glBindVertexArray(0);
+	// Generate an empty frame to use as the next frame with a new PBO
+	unsigned char blank_frame[4 * num_columns * num_rows];
+	for (int i = 0; i < 4 * num_columns * num_rows; i++)
+		blank_frame[i] = 0;
+	renderer->current_pbo = 0;
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, renderer->double_pbo[renderer->current_pbo]);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, 4 * sizeof (unsigned char) * num_columns * num_rows, blank_frame, GL_STREAM_DRAW);
 
-	// Allocate and initialize the floorceiling texture buffers for this new resolution
-	// FIXME: Max texture width or height is meant to be 1024! We will probably need to split the textures up if resolution is too large
-	renderer->fc_pixels = realloc(renderer->fc_pixels, 4 * sizeof (unsigned char) * renderer->num_columns * renderer->num_rows);
-	glBindTexture(GL_TEXTURE_2D, renderer->fc_texture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderer->num_columns, renderer->num_rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, renderer->tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, num_columns, num_rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 static struct ray_result renderer_internal_raycast(const int *const map, int map_height, int map_width, double x, double y, double a) {

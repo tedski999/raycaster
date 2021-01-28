@@ -2,6 +2,7 @@
 #include "renderer.h"
 #include "player.h"
 #include "map.h"
+#include "timer.h"
 #include <stdbool.h>
 
 #define DEG2RAD(degree) (degree * 3.14152 / 180)
@@ -10,6 +11,7 @@
 #define window_width 640
 #define window_height 480
 #define window_aspect (16.0 / 9.0)
+#define tps 60
 
 int main(int argc, char **argv) {
 
@@ -57,24 +59,35 @@ int main(int argc, char **argv) {
 
 	// Main game loop
 	bool is_running = true;
+	double accumulated_time = 0;
+	struct raycaster_timer *timer = rc_timer_create();
 	while (is_running) {
 
-		// Update
-		window_update(window);
-		player_update(player);
-		if (window_should_close(window))
-			is_running = false;
+		// Find deltatime
+		double dt = rc_timer_reset(timer);
+		accumulated_time += dt;
 
-		// Debug input
-		if (window_is_key_down(window, INPUT_KEY_Q)) renderer_set_fov(renderer, fov -= 0.01);
-		if (window_is_key_down(window, INPUT_KEY_E)) renderer_set_fov(renderer, fov += 0.01);
-		if (window_is_key_down(window, INPUT_KEY_Z)) renderer_set_pixelation(renderer, pixelation += 1);
-		if (window_is_key_down(window, INPUT_KEY_X)) if (pixelation > 1) renderer_set_pixelation(renderer, pixelation -= 1);
-		if (window_is_key_down(window, INPUT_KEY_COMMA)) renderer_set_wallheight(renderer, wallheight -= 0.01);
-		if (window_is_key_down(window, INPUT_KEY_PERIOD)) renderer_set_wallheight(renderer, wallheight += 0.01);
-		if (window_is_key_down(window, INPUT_KEY_ESCAPE)) is_running = false;
+		// Update 60 times a second
+		while (is_running && accumulated_time >= 1.0 / tps) {
+			accumulated_time -= 1.0 / tps;
 
-		// Render
+			// Update
+			window_update(window);
+			player_update(player);
+			if (window_should_close(window))
+				is_running = false;
+
+			// Debug input
+			if (window_is_key_down(window, INPUT_KEY_Q)) renderer_set_fov(renderer, fov -= 0.01);
+			if (window_is_key_down(window, INPUT_KEY_E)) renderer_set_fov(renderer, fov += 0.01);
+			if (window_is_key_down(window, INPUT_KEY_Z)) renderer_set_pixelation(renderer, pixelation += 1);
+			if (window_is_key_down(window, INPUT_KEY_X)) if (pixelation > 1) renderer_set_pixelation(renderer, pixelation -= 1);
+			if (window_is_key_down(window, INPUT_KEY_COMMA)) renderer_set_wallheight(renderer, wallheight -= 0.01);
+			if (window_is_key_down(window, INPUT_KEY_PERIOD)) renderer_set_wallheight(renderer, wallheight += 0.01);
+			if (window_is_key_down(window, INPUT_KEY_ESCAPE)) is_running = false;
+		}
+
+		// Render asap
 		double player_x, player_y, player_r;
 		player_get_transform(player, &player_x, &player_y, &player_r);
 		window_set_as_context(window);
@@ -83,6 +96,7 @@ int main(int argc, char **argv) {
 	}
 
 	// Cleanup
+	rc_timer_destroy(timer);
 	map_destroy(map);
 	player_destroy(player);
 	renderer_destroy(renderer);

@@ -18,13 +18,13 @@ struct ray_result {
 	int wall;
 };
 
-static struct ray_result renderer_internal_raycast(struct raycaster_map *map, double x, double y, double a);
-static void renderer_internal_resize(struct raycaster_renderer *renderer);
-static unsigned renderer_internal_create_shader(const char *const filepath, GLenum shader_type);
-static unsigned renderer_internal_create_shader_program(unsigned shaders[], int count);
-static void renderer_internal_opengl_message_callback(GLenum source, GLenum type, unsigned id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
+static struct ray_result rc_renderer_internal_raycast(struct raycaster_map *map, double x, double y, double a);
+static void rc_renderer_internal_resize(struct raycaster_renderer *renderer);
+static unsigned rc_renderer_internal_create_shader(const char *const filepath, GLenum shader_type);
+static unsigned rc_renderer_internal_create_shader_program(unsigned shaders[], int count);
+static void rc_renderer_internal_opengl_message_callback(GLenum source, GLenum type, unsigned id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
 
-struct raycaster_renderer *renderer_create(int width, int height, double aspect, double fov, int pixelation, double wallheight) {
+struct raycaster_renderer *rc_renderer_create(int width, int height, double aspect, double fov, int pixelation, double wallheight) {
 
 	struct raycaster_renderer *renderer = malloc(sizeof *renderer);
 	// TODO: assert malloc
@@ -41,7 +41,7 @@ struct raycaster_renderer *renderer_create(int width, int height, double aspect,
 
 	// Configure OpenGL
 	glEnable(GL_DEBUG_OUTPUT); // TODO: togglable
-	glDebugMessageCallback(renderer_internal_opengl_message_callback, 0);
+	glDebugMessageCallback(rc_renderer_internal_opengl_message_callback, 0);
 
 	// Initialize the OpenGL buffers for software renderering
 	glGenVertexArrays(1, &renderer->vao);
@@ -74,18 +74,18 @@ struct raycaster_renderer *renderer_create(int width, int height, double aspect,
 
 	// Setup the shader
 	unsigned shaders[2];
-	shaders[0] = renderer_internal_create_shader("res/shaders/base.vert", GL_VERTEX_SHADER);
-	shaders[1] = renderer_internal_create_shader("res/shaders/base.frag", GL_FRAGMENT_SHADER);
-	renderer->shader = renderer_internal_create_shader_program(shaders, 2);
+	shaders[0] = rc_renderer_internal_create_shader("res/shaders/base.vert", GL_VERTEX_SHADER);
+	shaders[1] = rc_renderer_internal_create_shader("res/shaders/base.frag", GL_FRAGMENT_SHADER);
+	renderer->shader = rc_renderer_internal_create_shader_program(shaders, 2);
 	glDeleteShader(shaders[0]);
 	glDeleteShader(shaders[1]);
 
 	glBindVertexArray(0);
-	renderer_internal_resize(renderer);
+	rc_renderer_internal_resize(renderer);
 	return renderer;
 }
 
-void renderer_set_dimensions(struct raycaster_renderer *renderer, int width, int height) {
+void rc_renderer_set_dimensions(struct raycaster_renderer *renderer, int width, int height) {
 	double xratio = renderer->aspect * height / width;
 	double yratio = 1 / xratio;
 	if (xratio > 1) xratio = 1;
@@ -99,24 +99,23 @@ void renderer_set_dimensions(struct raycaster_renderer *renderer, int width, int
 	renderer->width = w;
 	renderer->height = h;
 	glViewport(x, y, w, h);
-	renderer_internal_resize(renderer);
+	rc_renderer_internal_resize(renderer);
 }
 
-void renderer_set_fov(struct raycaster_renderer *renderer, double fov) {
+void rc_renderer_set_fov(struct raycaster_renderer *renderer, double fov) {
 	renderer->fov = fov;
 }
 
-void renderer_set_pixelation(struct raycaster_renderer *renderer, int pixelation) {
+void rc_renderer_set_pixelation(struct raycaster_renderer *renderer, int pixelation) {
 	renderer->pixelation = pixelation;
-	renderer_internal_resize(renderer);
+	rc_renderer_internal_resize(renderer);
 }
 
-void renderer_set_wallheight(struct raycaster_renderer *renderer, double wallheight) {
+void rc_renderer_set_wallheight(struct raycaster_renderer *renderer, double wallheight) {
 	renderer->wallheight = wallheight;
 }
 
-
-void renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map *map, double x, double y, double r) {
+void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map *map, double x, double y, double r) {
 	int num_columns = renderer->width / renderer->pixelation;
 	int num_rows = renderer->height / renderer->pixelation;
 
@@ -180,7 +179,7 @@ void renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map *ma
 		double ray_offset = ((2.0 * column / num_columns) - 1) * renderer->fov;
 		double ray_rx = cos(r) - sin(r) * ray_offset;
 		double ray_ry = sin(r) + cos(r) * ray_offset;
-		struct ray_result hit = renderer_internal_raycast(map, x, y, atan2(ray_ry, ray_rx));
+		struct ray_result hit = rc_renderer_internal_raycast(map, x, y, atan2(ray_ry, ray_rx));
 		hit.distance *= 1 / sqrt(ray_rx * ray_rx + ray_ry * ray_ry);
 
 		// Determine length and y position of this column
@@ -206,7 +205,7 @@ void renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map *ma
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
-void renderer_destroy(struct raycaster_renderer *renderer) {
+void rc_renderer_destroy(struct raycaster_renderer *renderer) {
 	glDeleteVertexArrays(1, &renderer->vao);
 	glDeleteBuffers(1, &renderer->vbo);
 	glDeleteBuffers(1, &renderer->ibo);
@@ -215,7 +214,7 @@ void renderer_destroy(struct raycaster_renderer *renderer) {
 	glDeleteProgram(renderer->shader);
 }
 
-static void renderer_internal_resize(struct raycaster_renderer *renderer) {
+static void rc_renderer_internal_resize(struct raycaster_renderer *renderer) {
 	int num_columns = renderer->width / renderer->pixelation;
 	int num_rows = renderer->height / renderer->pixelation;
 
@@ -234,7 +233,7 @@ static void renderer_internal_resize(struct raycaster_renderer *renderer) {
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-static struct ray_result renderer_internal_raycast(struct raycaster_map *map, double x, double y, double a) {
+static struct ray_result rc_renderer_internal_raycast(struct raycaster_map *map, double x, double y, double a) {
 	double dx = 1 / cos(a), dy = 1 / sin(a);
 	double rx = x - (int)x, ry = y - (int)y;
 
@@ -246,7 +245,7 @@ static struct ray_result renderer_internal_raycast(struct raycaster_map *map, do
 	rx *= dx; ry *= dy;
 
 	struct ray_result hit = { 0, 0, 0 };
-	while (!(hit.wall = map_get_wall(map, x, y))) {
+	while (!(hit.wall = rc_map_get_wall(map, x, y))) {
 		if (rx < ry) {
 			hit.distance = rx;
 			hit.direction = 1;
@@ -263,7 +262,7 @@ static struct ray_result renderer_internal_raycast(struct raycaster_map *map, do
 	return hit;
 }
 
-static unsigned renderer_internal_create_shader(const char *const filepath, GLenum shader_type) {
+static unsigned rc_renderer_internal_create_shader(const char *const filepath, GLenum shader_type) {
 	FILE *file = fopen(filepath, "r");
 	if (!file) {
 		fprintf(stderr, "Could not read from '%s'!\n", filepath);
@@ -304,7 +303,7 @@ static unsigned renderer_internal_create_shader(const char *const filepath, GLen
 	return shader;
 }
 
-static unsigned renderer_internal_create_shader_program(unsigned shaders[], int count) {
+static unsigned rc_renderer_internal_create_shader_program(unsigned shaders[], int count) {
 	unsigned program = glCreateProgram();
 	for (int i = 0; i < count; i++)
 		glAttachShader(program, shaders[i]);
@@ -312,6 +311,6 @@ static unsigned renderer_internal_create_shader_program(unsigned shaders[], int 
 	return program;
 }
 
-static void renderer_internal_opengl_message_callback(GLenum source, GLenum type, unsigned id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam) {
+static void rc_renderer_internal_opengl_message_callback(GLenum source, GLenum type, unsigned id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam) {
 	fprintf(stderr, "%s %s\n", (type == GL_DEBUG_TYPE_ERROR) ? "(GL ERR):" : "(GL)", message);
 }

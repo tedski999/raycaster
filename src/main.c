@@ -48,14 +48,14 @@ int main(int argc, char **argv) {
 	};
 
 	// Open a window and assign a raycast renderer to it
-	struct raycaster_window *window = window_create(window_title, window_width, window_height, true, false);
-	struct raycaster_renderer *renderer = renderer_create(window_width, window_height, window_aspect, fov, pixelation, wallheight);
-	window_set_renderer(window, renderer);
-	window_update(window);
+	struct raycaster_window *window = rc_window_create(window_title, window_width, window_height, true, false);
+	struct raycaster_renderer *renderer = rc_renderer_create(window_width, window_height, window_aspect, fov, pixelation, wallheight);
+	rc_window_set_renderer(window, renderer);
+	rc_window_update(window);
 
 	// Game-related objects
-	struct raycaster_map *map = map_create(map_width, map_height, map_data);
-	struct raycaster_player *player = player_create(window, map, 11.5, 7.5, DEG2RAD(90));
+	struct raycaster_map *map = rc_map_create(map_width, map_height, map_data);
+	struct raycaster_player *player = rc_player_create(window, map, 11.5, 7.5, DEG2RAD(90));
 
 	// Main game loop
 	bool is_running = true;
@@ -72,33 +72,33 @@ int main(int argc, char **argv) {
 			accumulated_time -= 1.0 / tps;
 
 			// Update
-			window_update(window);
-			player_update(player);
-			if (window_should_close(window))
+			rc_window_update(window);
+			rc_player_update(player);
+			if (rc_window_should_close(window))
 				is_running = false;
 
 			// Debug input
-			if (window_is_key_down(window, INPUT_KEY_Q)) renderer_set_fov(renderer, fov -= 0.01);
-			if (window_is_key_down(window, INPUT_KEY_E)) renderer_set_fov(renderer, fov += 0.01);
-			if (window_is_key_down(window, INPUT_KEY_Z)) renderer_set_pixelation(renderer, pixelation += 1);
-			if (window_is_key_down(window, INPUT_KEY_X)) if (pixelation > 1) renderer_set_pixelation(renderer, pixelation -= 1);
-			if (window_is_key_down(window, INPUT_KEY_COMMA)) renderer_set_wallheight(renderer, wallheight -= 0.01);
-			if (window_is_key_down(window, INPUT_KEY_PERIOD)) renderer_set_wallheight(renderer, wallheight += 0.01);
-			if (window_is_key_down(window, INPUT_KEY_ESCAPE)) is_running = false;
+			if (rc_window_is_key_down(window, INPUT_KEY_Q)) rc_renderer_set_fov(renderer, fov -= 0.01);
+			if (rc_window_is_key_down(window, INPUT_KEY_E)) rc_renderer_set_fov(renderer, fov += 0.01);
+			if (rc_window_is_key_down(window, INPUT_KEY_Z)) rc_renderer_set_pixelation(renderer, pixelation += 1);
+			if (rc_window_is_key_down(window, INPUT_KEY_X)) if (pixelation > 1) rc_renderer_set_pixelation(renderer, pixelation -= 1);
+			if (rc_window_is_key_down(window, INPUT_KEY_COMMA)) rc_renderer_set_wallheight(renderer, wallheight -= 0.01);
+			if (rc_window_is_key_down(window, INPUT_KEY_PERIOD)) rc_renderer_set_wallheight(renderer, wallheight += 0.01);
+			if (rc_window_is_key_down(window, INPUT_KEY_ESCAPE)) is_running = false;
 		}
 
 		// Render asap
 		double player_x, player_y, player_r;
-		player_get_transform(player, &player_x, &player_y, &player_r);
-		window_set_as_context(window);
-		renderer_draw(renderer, map, player_x, player_y, player_r);
-		window_render(window);
+		rc_player_get_transform(player, &player_x, &player_y, &player_r);
+		rc_window_set_as_context(window);
+		rc_renderer_draw(renderer, map, player_x, player_y, player_r);
+		rc_window_render(window);
 	}
 
 	// Cleanup
 	rc_timer_destroy(timer);
-	map_destroy(map);
-	player_destroy(player);
-	renderer_destroy(renderer);
-	window_destroy(window);
+	rc_map_destroy(map);
+	rc_player_destroy(player);
+	rc_renderer_destroy(renderer);
+	rc_window_destroy(window);
 }

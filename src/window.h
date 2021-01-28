@@ -69,14 +69,14 @@ enum input_key {
 
 struct raycaster_window;
 
-struct raycaster_window *window_create(const char *const title, int width, int height, bool is_resizable, bool is_cursor_disabled);
-void window_set_renderer(struct raycaster_window *rc_window, void *renderer);
-void window_set_as_context(struct raycaster_window *rc_window);
-bool window_is_key_down(struct raycaster_window *rc_window, enum input_key key);
-void window_get_mouse_position(struct raycaster_window *rc_window, double *const x, double *const y);
-bool window_should_close(struct raycaster_window *rc_window);
-void window_update(struct raycaster_window *rc_window);
-void window_render(struct raycaster_window *rc_window);
-void window_destroy(struct raycaster_window *rc_window);
+struct raycaster_window *rc_window_create(const char *const title, int width, int height, bool is_resizable, bool is_cursor_disabled);
+void rc_window_set_renderer(struct raycaster_window *rc_window, void *renderer);
+void rc_window_set_as_context(struct raycaster_window *rc_window);
+bool rc_window_is_key_down(struct raycaster_window *rc_window, enum input_key key);
+void rc_window_get_mouse_position(struct raycaster_window *rc_window, double *const x, double *const y);
+bool rc_window_should_close(struct raycaster_window *rc_window);
+void rc_window_update(struct raycaster_window *rc_window);
+void rc_window_render(struct raycaster_window *rc_window);
+void rc_window_destroy(struct raycaster_window *rc_window);
 
 #endif

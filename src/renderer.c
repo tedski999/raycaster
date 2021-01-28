@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "error.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -22,12 +23,14 @@ static struct ray_result rc_renderer_internal_raycast(struct raycaster_map *map,
 static void rc_renderer_internal_resize(struct raycaster_renderer *renderer);
 static unsigned rc_renderer_internal_create_shader(const char *const filepath, GLenum shader_type);
 static unsigned rc_renderer_internal_create_shader_program(unsigned shaders[], int count);
+#ifdef RC_DEBUG
 static void rc_renderer_internal_opengl_message_callback(GLenum source, GLenum type, unsigned id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
+#endif
 
 struct raycaster_renderer *rc_renderer_create(int width, int height, double aspect, double fov, int pixelation, double wallheight) {
 
 	struct raycaster_renderer *renderer = malloc(sizeof *renderer);
-	// TODO: assert malloc
+	RC_ASSERT(renderer, "raycaster_renderer memory allocation");
 	*renderer = (struct raycaster_renderer) { width, height, pixelation, aspect, fov, wallheight };
 
 	// Load OpenGL functions for the current context
@@ -40,8 +43,10 @@ struct raycaster_renderer *rc_renderer_create(int width, int height, double aspe
     printf("OpenGL %s, GLSL %s\n", glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
 
 	// Configure OpenGL
-	glEnable(GL_DEBUG_OUTPUT); // TODO: togglable
+#ifdef RC_DEBUG
+	glEnable(GL_DEBUG_OUTPUT);
 	glDebugMessageCallback(rc_renderer_internal_opengl_message_callback, 0);
+#endif
 
 	// Initialize the OpenGL buffers for software renderering
 	glGenVertexArrays(1, &renderer->vao);
@@ -311,6 +316,31 @@ static unsigned rc_renderer_internal_create_shader_program(unsigned shaders[], i
 	return program;
 }
 
+#ifdef RC_DEBUG
 static void rc_renderer_internal_opengl_message_callback(GLenum source, GLenum type, unsigned id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam) {
-	fprintf(stderr, "%s %s\n", (type == GL_DEBUG_TYPE_ERROR) ? "(GL ERR):" : "(GL)", message);
+	const char *type_str = "UNKN";
+	switch (type) {
+		case GL_DEBUG_TYPE_ERROR:
+		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+			type_str = "ERRR";
+			break;
+		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+			type_str = "DEPR";
+			break;
+		case GL_DEBUG_TYPE_PERFORMANCE:
+			type_str = "PERF";
+			break;
+		case GL_DEBUG_TYPE_PORTABILITY:
+			type_str = "PORT";
+			break;
+		case GL_DEBUG_TYPE_MARKER:
+		case GL_DEBUG_TYPE_POP_GROUP:
+		case GL_DEBUG_TYPE_PUSH_GROUP:
+		case GL_DEBUG_TYPE_OTHER:
+			type_str = "DBUG";
+			break;
+	}
+
+	printf("OpenGL (%s): %s\n", type_str, message);
 }
+#endif

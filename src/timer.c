@@ -1,4 +1,5 @@
 #include "timer.h"
+#include "error.h"
 #include <stdlib.h>
 #include <time.h>
 
@@ -14,7 +15,7 @@ struct raycaster_timer {
 
 struct raycaster_timer *rc_timer_create() {
 	struct raycaster_timer *timer = malloc(sizeof *timer);
-	// TODO: malloc assertion
+	RC_ASSERT(timer, "raycaster_timer memory allocation");
 	clock_gettime(CLOCK_MONOTONIC, &timer->start_time);
 	return timer;
 }

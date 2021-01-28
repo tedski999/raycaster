@@ -1,4 +1,5 @@
 #include "player.h"
+#include "error.h"
 #include <stdlib.h>
 #include <math.h>
 
@@ -18,7 +19,7 @@ struct raycaster_player {
 
 struct raycaster_player *rc_player_create(struct raycaster_window *window, struct raycaster_map *map, double position_x, double position_y, double rotation) {
 	struct raycaster_player *player = malloc(sizeof *player);
-	// TODO: malloc assertion
+	RC_ASSERT(player, "raycaster_player memory allocation");
 	*player = (struct raycaster_player) { window, map, position_x, position_y, rotation };
 	rc_window_get_mouse_position(window, &player->old_mouse_x, &player->old_mouse_y);
 	return player;

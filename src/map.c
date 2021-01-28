@@ -1,4 +1,5 @@
 #include "map.h"
+#include "error.h"
 #include <stdlib.h>
 
 struct raycaster_map {
@@ -8,10 +9,10 @@ struct raycaster_map {
 
 struct raycaster_map *rc_map_create(int map_width, int map_height, const int *const map_data) {
 	struct raycaster_map *map = malloc(sizeof *map);
-	// TODO: malloc assertion
+	RC_ASSERT(map, "raycaster_map memory allocation");
 	*map = (struct raycaster_map) { map_width, map_height };
 	map->data = malloc(sizeof (int) * map_width * map_height);
-	// TODO: malloc assertion
+	RC_ASSERT(map->data, "raycaster_map->data memory allocation");
 	for (int i = 0; i < map_width * map_height; i++)
 		map->data[i] = map_data[i];
 	return map;

@@ -18,7 +18,7 @@ struct ray_result {
 	int wall;
 };
 
-static struct ray_result renderer_internal_raycast(const int *const map, int map_width, int map_height, double x, double y, double a);
+static struct ray_result renderer_internal_raycast(struct raycaster_map *map, double x, double y, double a);
 static void renderer_internal_resize(struct raycaster_renderer *renderer);
 static unsigned renderer_internal_create_shader(const char *const filepath, GLenum shader_type);
 static unsigned renderer_internal_create_shader_program(unsigned shaders[], int count);
@@ -42,7 +42,6 @@ struct raycaster_renderer *renderer_create(int width, int height, double aspect,
 	// Configure OpenGL
 	glEnable(GL_DEBUG_OUTPUT); // TODO: togglable
 	glDebugMessageCallback(renderer_internal_opengl_message_callback, 0);
-	glClearColor(0.0, 0.0, 0.0, 0.0);
 
 	// Initialize the OpenGL buffers for software renderering
 	glGenVertexArrays(1, &renderer->vao);
@@ -86,10 +85,6 @@ struct raycaster_renderer *renderer_create(int width, int height, double aspect,
 	return renderer;
 }
 
-void renderer_clear() {
-	glClear(GL_COLOR_BUFFER_BIT);
-}
-
 void renderer_set_dimensions(struct raycaster_renderer *renderer, int width, int height) {
 	double xratio = renderer->aspect * height / width;
 	double yratio = 1 / xratio;
@@ -120,9 +115,12 @@ void renderer_set_wallheight(struct raycaster_renderer *renderer, double wallhei
 	renderer->wallheight = wallheight;
 }
 
-void renderer_draw(struct raycaster_renderer *renderer, const int *const map, int map_width, int map_height, double x, double y, double r) {
+
+void renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map *map, double x, double y, double r) {
 	int num_columns = renderer->width / renderer->pixelation;
 	int num_rows = renderer->height / renderer->pixelation;
+
+	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Render with the current PBO
 	glUseProgram(renderer->shader);
@@ -182,7 +180,7 @@ void renderer_draw(struct raycaster_renderer *renderer, const int *const map, in
 		double ray_offset = ((2.0 * column / num_columns) - 1) * renderer->fov;
 		double ray_rx = cos(r) - sin(r) * ray_offset;
 		double ray_ry = sin(r) + cos(r) * ray_offset;
-		struct ray_result hit = renderer_internal_raycast(map, map_width, map_height, x, y, atan2(ray_ry, ray_rx));
+		struct ray_result hit = renderer_internal_raycast(map, x, y, atan2(ray_ry, ray_rx));
 		hit.distance *= 1 / sqrt(ray_rx * ray_rx + ray_ry * ray_ry);
 
 		// Determine length and y position of this column
@@ -236,7 +234,7 @@ static void renderer_internal_resize(struct raycaster_renderer *renderer) {
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-static struct ray_result renderer_internal_raycast(const int *const map, int map_height, int map_width, double x, double y, double a) {
+static struct ray_result renderer_internal_raycast(struct raycaster_map *map, double x, double y, double a) {
 	double dx = 1 / cos(a), dy = 1 / sin(a);
 	double rx = x - (int)x, ry = y - (int)y;
 
@@ -248,7 +246,7 @@ static struct ray_result renderer_internal_raycast(const int *const map, int map
 	rx *= dx; ry *= dy;
 
 	struct ray_result hit = { 0, 0, 0 };
-	while (x >= 0 & x < map_width & y >= 0 & y < map_height & !(hit.wall = map[(int)y * map_width + (int)x])) {
+	while (!(hit.wall = map_get_wall(map, x, y))) {
 		if (rx < ry) {
 			hit.distance = rx;
 			hit.direction = 1;

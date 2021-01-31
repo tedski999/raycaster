@@ -47,7 +47,7 @@ void rc_player_update(struct raycaster_player *player) {
 	if (rc_window_is_key_down(player->window, INPUT_KEY_A)) { player->velocity_x += sin(player->rotation) * player_accel; player->velocity_y -= cos(player->rotation) * player_accel; }
 
 	// Check for collision before applying velocity
-	if (rc_map_get_wall(player->map, (int)(player->position_x + player->velocity_x), (int)(player->position_y + player->velocity_y)) == 0) {
+	if (rc_map_get_wall(player->map, (int)(player->position_x + player->velocity_x), (int)(player->position_y + player->velocity_y)) == -1) {
 		player->velocity_x *= 1.0 / player_drag;
 		player->velocity_y *= 1.0 / player_drag;
 		player->position_x += player->velocity_x;

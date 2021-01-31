@@ -94,6 +94,9 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 	glBufferData(GL_PIXEL_UNPACK_BUFFER, 4 * sizeof (unsigned char) * renderer->num_columns * renderer->num_rows, NULL, GL_STREAM_DRAW);
 	unsigned char *pixels = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
 
+	int map_width, map_height;
+	rc_map_get_size(map, &map_width, &map_height);
+
 	// Draw floor and ceiling
 	double ray_left_rx = cos(r) + sin(r) * renderer->fov, ray_left_ry = sin(r) - cos(r) * renderer->fov;
 	double ray_right_rx = cos(r) - sin(r) * renderer->fov, ray_right_ry = sin(r) + cos(r) * renderer->fov;
@@ -102,51 +105,61 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		row_dist *= 1.0 / renderer->fov;
 
 		for (int column = 0; column < renderer->num_columns; column++) {
+
+			// Find the tile the ray is in and the position within the tile
 			double angle = (double)column / renderer->num_columns;
-			double xtile = x + row_dist * (ray_left_rx + angle * (ray_right_rx - ray_left_rx));
-			double ytile = y + row_dist * (ray_left_ry + angle * (ray_right_ry - ray_left_ry));
-			double tile_x = xtile - (int)xtile;
-			double tile_y = ytile - (int)ytile;
+			double ray_x = x + row_dist * (ray_left_rx + angle * (ray_right_rx - ray_left_rx));
+			double ray_y = y + row_dist * (ray_left_ry + angle * (ray_right_ry - ray_left_ry));
+			int tile_x = (int)ray_x;
+			int tile_y = (int)ray_y;
+			double texture_x = ray_x - tile_x;
+			double texture_y = ray_y - tile_y;
+
+			// Don't draw tiles outside the map
+			if (tile_x < 0 || tile_x >= map_width || tile_y < 0 || tile_y >= map_height)
+				continue;
 
 			unsigned char r, g, b, a;
 			struct raycaster_texture *tex;
 			int tex_width, tex_height;
 			int pixels_index;
 
-			tex = renderer->wall_textures[2];
+			// Find color of floor at this point
+			tex = renderer->wall_textures[rc_map_get_floor(map, tile_x, tile_y)];
 			rc_texture_get_dimensions(tex, &tex_width, &tex_height);
 			rc_texture_get_pixel(
 				tex,
-				(int)(tex_width * tile_x) & (tex_width - 1),
-				(int)(tex_height * tile_y) & (tex_height - 1),
+				(int)(tex_width * texture_x) & (tex_width - 1),
+				(int)(tex_height * texture_y) & (tex_height - 1),
 				&r, &g, &b, &a);
-
 #if FUNKY_LIGHTING
 			r *= 1 - row * 2.0 / renderer->num_rows;
 			g *= 1 - row * 2.0 / renderer->num_rows;
 			b *= 1 - row * 2.0 / renderer->num_rows;
 #endif
 
+			// Draw floor
 			pixels_index = 4 * (row * renderer->num_columns + column);
 			pixels[pixels_index + 0] = r;
 			pixels[pixels_index + 1] = g;
 			pixels[pixels_index + 2] = b;
 			pixels[pixels_index + 3] = 0xff;
 
-			tex = renderer->wall_textures[7];
+			// Find color of ceiling at this point
+			tex = renderer->wall_textures[rc_map_get_ceiling(map, tile_x, tile_y)];
 			rc_texture_get_dimensions(tex, &tex_width, &tex_height);
 			rc_texture_get_pixel(
 				tex,
-				(int)(tex_width * tile_x) & (tex_width - 1),
-				(int)(tex_height * tile_y) & (tex_height - 1),
+				(int)(tex_width * texture_x) & (tex_width - 1),
+				(int)(tex_height * texture_y) & (tex_height - 1),
 				&r, &g, &b, &a);
-
 #if FUNKY_LIGHTING
 			r *= 1 - row * 2.0 / renderer->num_rows;
 			g *= 1 - row * 2.0 / renderer->num_rows;
 			b *= 1 - row * 2.0 / renderer->num_rows;
 #endif
 
+			// Draw ceiling
 			pixels_index = 4 * ((renderer->num_rows - row - 1) * renderer->num_columns + column);
 			pixels[pixels_index + 0] = r;
 			pixels[pixels_index + 1] = g;
@@ -165,6 +178,10 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		struct ray_result hit = rc_renderer_internal_raycast(map, x, y, atan2(ray_ry, ray_rx));
 		hit.distance *= 1 / sqrt(ray_rx * ray_rx + ray_ry * ray_ry);
 
+		// Don't draw empty walls
+		if (hit.wall == -1)
+			continue;
+
 		// Wall column
 		double wall_length = renderer->wall_height / (hit.distance * renderer->fov);
 		int line_length = renderer->num_rows * wall_length;
@@ -176,10 +193,10 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 
 		// Wall texture
 		int tex_width, tex_height;
-		struct raycaster_texture *tex = renderer->wall_textures[hit.wall - 1];
+		struct raycaster_texture *tex = renderer->wall_textures[hit.wall];
 		rc_texture_get_dimensions(tex, &tex_width, &tex_height);
 		double texels_per_row = (double) tex_height / line_length;
-		double tex_x = hit.latitude * tex_width, tex_y = tex_height - rows_skipped * texels_per_row - 1; // TODO: draw line on some textures, i think tex_y is off by 1 or 2 px
+		double tex_x = hit.latitude * tex_width, tex_y = tex_height - rows_skipped * texels_per_row - 1;
 		if ((hit.direction && ray_rx < 0) || (!hit.direction && ray_ry > 0))
 			tex_x = tex_width - tex_x;
 
@@ -236,9 +253,13 @@ static struct ray_result rc_renderer_internal_raycast(struct raycaster_map *map,
 	if (ay >= 0) { ry = 1 - ry; sy = 1; }
 	rx *= dx; ry *= dy;
 
+	// Get bounds of the map
+	int map_width, map_height;
+	rc_map_get_size(map, &map_width, &map_height);
+
 	// Euclidean distance to the nearest wall
-	struct ray_result hit = {};
-	while (!(hit.wall = rc_map_get_wall(map, tx, ty))) {
+	struct ray_result hit = { 0, 0, 0, -1 };
+	while ((hit.wall = rc_map_get_wall(map, tx, ty)) == -1) {
 		if (rx < ry) {
 			hit.distance = rx;
 			hit.direction = 1;
@@ -250,6 +271,10 @@ static struct ray_result rc_renderer_internal_raycast(struct raycaster_map *map,
 			ry += dy;
 			ty += sy;
 		}
+
+		// If ray is now out of bounds, abort
+		if (tx < 0 || tx >= map_width || ty < 0 || ty >= map_height)
+			break;
 	}
 
 	// Calculate hit position on the wall surface

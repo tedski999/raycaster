@@ -7,20 +7,21 @@
 
 #define DEG2RAD(degree) (degree * 3.14152 / 180)
 
-#define window_title "raycaster"
-#define window_width 640
-#define window_height 480
-#define window_aspect (16.0 / 9.0)
-#define tps 60
-
 int main(int argc, char **argv) {
 
-	int pixelation = 5;
-	double fov = DEG2RAD(60);
-	double wallheight = 1.0;
+	// Window config
+	const int window_width = 640, window_height = 480;
+	const double window_aspect = 16.0 / 9.0;
+	const bool window_is_resizable = true, window_is_cursor_disabled = false;
+
+	// Debug variables
+	int tps = 60;             // ticks per second
+	int resolution = 200;     // number of vertical pixels
+	double fov = DEG2RAD(60); // field of view
+	double wall_height = 1.0; // height of raycast walls multiplier
 
 	// TODO: map should have 3 layers: floor, walls, ceiling
-	const int map_width = 24, map_height = 24, map_data[24*24] = {
+	const int map_width = 24, map_height = 24, map_data[24 * 24] = {
 		4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,7,7,7,7,7,7,7,7,
 		4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,7,
 		4,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,
@@ -47,11 +48,22 @@ int main(int argc, char **argv) {
 		4,4,4,4,4,4,4,4,4,4,1,1,1,2,2,2,2,2,2,3,3,3,3,3
 	};
 
+	// Load textures
+	const int wall_textures_count = 8;
+	struct raycaster_texture *wall_textures[8] = {
+		rc_texture_load("res/textures/redbrick.png"),
+		rc_texture_load("res/textures/bluestone.png"),
+		rc_texture_load("res/textures/colorstone.png"),
+		rc_texture_load("res/textures/eagle.png"),
+		rc_texture_load("res/textures/greystone.png"),
+		rc_texture_load("res/textures/mossy.png"),
+		rc_texture_load("res/textures/purplestone.png"),
+		rc_texture_load("res/textures/wood.png")
+	};
+
 	// Open a window and assign a raycast renderer to it
-	struct raycaster_window *window = rc_window_create(window_title, window_width, window_height, true, false);
-	struct raycaster_renderer *renderer = rc_renderer_create(window_width, window_height, window_aspect, fov, pixelation, wallheight);
-	rc_window_set_renderer(window, renderer);
-	rc_window_update(window);
+	struct raycaster_window *window = rc_window_create("raycaster", window_width, window_height, window_is_resizable, window_is_cursor_disabled);
+	struct raycaster_renderer *renderer = rc_renderer_create(window, window_aspect, resolution, fov, wall_height, wall_textures);
 
 	// Game-related objects
 	struct raycaster_map *map = rc_map_create(map_width, map_height, map_data);
@@ -77,13 +89,15 @@ int main(int argc, char **argv) {
 			if (rc_window_should_close(window))
 				is_running = false;
 
-			// Debug input
+			// Debug input - TODO: write these as text to the screen
 			if (rc_window_is_key_down(window, INPUT_KEY_Q)) rc_renderer_set_fov(renderer, fov -= 0.01);
 			if (rc_window_is_key_down(window, INPUT_KEY_E)) rc_renderer_set_fov(renderer, fov += 0.01);
-			if (rc_window_is_key_down(window, INPUT_KEY_Z)) rc_renderer_set_pixelation(renderer, pixelation += 1);
-			if (rc_window_is_key_down(window, INPUT_KEY_X)) if (pixelation > 1) rc_renderer_set_pixelation(renderer, pixelation -= 1);
-			if (rc_window_is_key_down(window, INPUT_KEY_COMMA)) rc_renderer_set_wallheight(renderer, wallheight -= 0.01);
-			if (rc_window_is_key_down(window, INPUT_KEY_PERIOD)) rc_renderer_set_wallheight(renderer, wallheight += 0.01);
+			if (rc_window_is_key_down(window, INPUT_KEY_Z)) rc_renderer_set_resolution(renderer, resolution += 2);
+			if (rc_window_is_key_down(window, INPUT_KEY_X)) if (resolution > 1) rc_renderer_set_resolution(renderer, resolution -= 2);
+			if (rc_window_is_key_down(window, INPUT_KEY_COMMA)) rc_renderer_set_wall_height(renderer, wall_height -= 0.01);
+			if (rc_window_is_key_down(window, INPUT_KEY_PERIOD)) rc_renderer_set_wall_height(renderer, wall_height += 0.01);
+			if (rc_window_is_key_down(window, INPUT_KEY_N)) tps++;
+			if (rc_window_is_key_down(window, INPUT_KEY_M)) tps--;
 			if (rc_window_is_key_down(window, INPUT_KEY_ESCAPE)) is_running = false;
 		}
 
@@ -101,4 +115,6 @@ int main(int argc, char **argv) {
 	rc_player_destroy(player);
 	rc_renderer_destroy(renderer);
 	rc_window_destroy(window);
+	for (int i = 0; i < wall_textures_count; i++)
+		rc_texture_unload(wall_textures[i]);
 }

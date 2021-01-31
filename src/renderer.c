@@ -5,6 +5,8 @@
 #include <math.h>
 #include <glad/glad.h>
 
+#define FUNKY_LIGHTING 1
+
 struct raycaster_renderer {
 	struct raycaster_window *window;
 	double aspect, fov, wall_height;
@@ -103,27 +105,52 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			double angle = (double)column / renderer->num_columns;
 			double xtile = x + row_dist * (ray_left_rx + angle * (ray_right_rx - ray_left_rx));
 			double ytile = y + row_dist * (ray_left_ry + angle * (ray_right_ry - ray_left_ry));
+			double tile_x = xtile - (int)xtile;
+			double tile_y = ytile - (int)ytile;
 
-			int checkerboard = ((int)xtile + (int)ytile) % 2;
+			unsigned char r, g, b, a;
+			struct raycaster_texture *tex;
+			int tex_width, tex_height;
+			int pixels_index;
 
-			// TODO: sample texture/color from xtile,ytile
-			unsigned char floor_color_r = 0xff * checkerboard;
-			unsigned char floor_color_g = 0x00;
-			unsigned char floor_color_b = 0x00;
-			unsigned char ceiling_color_r = 0x00;
-			unsigned char ceiling_color_g = 0xff * checkerboard;
-			unsigned char ceiling_color_b = 0x00;
+			tex = renderer->wall_textures[2];
+			rc_texture_get_dimensions(tex, &tex_width, &tex_height);
+			rc_texture_get_pixel(
+				tex,
+				(int)(tex_width * tile_x) & (tex_width - 1),
+				(int)(tex_height * tile_y) & (tex_height - 1),
+				&r, &g, &b, &a);
 
-			int pixels_index = 4 * (row * renderer->num_columns + column);
-			pixels[pixels_index + 0] = floor_color_r;
-			pixels[pixels_index + 1] = floor_color_g;
-			pixels[pixels_index + 2] = floor_color_b;
+#if FUNKY_LIGHTING
+			r *= 1 - row * 2.0 / renderer->num_rows;
+			g *= 1 - row * 2.0 / renderer->num_rows;
+			b *= 1 - row * 2.0 / renderer->num_rows;
+#endif
+
+			pixels_index = 4 * (row * renderer->num_columns + column);
+			pixels[pixels_index + 0] = r;
+			pixels[pixels_index + 1] = g;
+			pixels[pixels_index + 2] = b;
 			pixels[pixels_index + 3] = 0xff;
 
+			tex = renderer->wall_textures[7];
+			rc_texture_get_dimensions(tex, &tex_width, &tex_height);
+			rc_texture_get_pixel(
+				tex,
+				(int)(tex_width * tile_x) & (tex_width - 1),
+				(int)(tex_height * tile_y) & (tex_height - 1),
+				&r, &g, &b, &a);
+
+#if FUNKY_LIGHTING
+			r *= 1 - row * 2.0 / renderer->num_rows;
+			g *= 1 - row * 2.0 / renderer->num_rows;
+			b *= 1 - row * 2.0 / renderer->num_rows;
+#endif
+
 			pixels_index = 4 * ((renderer->num_rows - row - 1) * renderer->num_columns + column);
-			pixels[pixels_index + 0] = ceiling_color_r;
-			pixels[pixels_index + 1] = ceiling_color_g;
-			pixels[pixels_index + 2] = ceiling_color_b;
+			pixels[pixels_index + 0] = r;
+			pixels[pixels_index + 1] = g;
+			pixels[pixels_index + 2] = b;
 			pixels[pixels_index + 3] = 0xff;
 		}
 	}
@@ -139,7 +166,8 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		hit.distance *= 1 / sqrt(ray_rx * ray_rx + ray_ry * ray_ry);
 
 		// Wall column
-		int line_length = renderer->num_rows * renderer->wall_height / (hit.distance * renderer->fov);
+		double wall_length = renderer->wall_height / (hit.distance * renderer->fov);
+		int line_length = renderer->num_rows * wall_length;
 		int rows_skipped = (line_length - renderer->num_rows) / 2; // pixels of the wall below the screen
 		if (rows_skipped < 0)
 			rows_skipped = 0;
@@ -151,7 +179,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		struct raycaster_texture *tex = renderer->wall_textures[hit.wall - 1];
 		rc_texture_get_dimensions(tex, &tex_width, &tex_height);
 		double texels_per_row = (double) tex_height / line_length;
-		double tex_x = hit.latitude * tex_width, tex_y = rows_skipped * texels_per_row;
+		double tex_x = hit.latitude * tex_width, tex_y = tex_height - rows_skipped * texels_per_row - 1; // TODO: draw line on some textures, i think tex_y is off by 1 or 2 px
 		if ((hit.direction && ray_rx < 0) || (!hit.direction && ray_ry > 0))
 			tex_x = tex_width - tex_x;
 
@@ -159,12 +187,21 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		for (int i = rows_skipped; i < line_length - rows_skipped; i++) {
 			unsigned char r, g, b, a;
 			rc_texture_get_pixel(tex, tex_x, tex_y, &r, &g, &b, &a);
+
+#if FUNKY_LIGHTING
+			if (wall_length > 1)
+				wall_length = 1;
+			r *= wall_length;
+			g *= wall_length;
+			b *= wall_length;
+#endif
+
 			pixels[4 * pixels_index + 0] = r;
 			pixels[4 * pixels_index + 1] = g;
 			pixels[4 * pixels_index + 2] = b;
 			pixels[4 * pixels_index + 3] = a;
 			pixels_index += renderer->num_columns;
-			tex_y += texels_per_row;
+			tex_y -= texels_per_row;
 		}
 
 		// TODO: fill z-buffer here

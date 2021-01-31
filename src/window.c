@@ -17,7 +17,7 @@ static void rc_glfw_error_callback(int code, const char *desc);
 
 static int window_count = 0;
 
-struct raycaster_window *rc_window_create(const char *const title, int width, int height, bool is_resizable, bool is_cursor_disabled) {
+struct raycaster_window *rc_window_create(const char *const title, int width, int height, bool is_resizable, bool is_cursor_disabled, bool is_vsync_enabled) {
 
 	// Start GLFW if this is the first window
 	if (window_count++ == 0) {
@@ -41,9 +41,16 @@ struct raycaster_window *rc_window_create(const char *const title, int width, in
 	glfwSetFramebufferSizeCallback(window->window, rc_glfw_framebuffer_resize_callback);
 	if (is_cursor_disabled)
 		glfwSetInputMode(window->window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	glfwSwapInterval(1); // TODO: togglable vsync
+	rc_window_set_vsync_enabled(window, is_vsync_enabled);
 
 	return window;
+}
+
+void rc_window_set_vsync_enabled(struct raycaster_window *window, bool is_vsync_enabled) {
+	GLFWwindow *previous_context = glfwGetCurrentContext();
+	glfwMakeContextCurrent(window->window);
+	glfwSwapInterval(is_vsync_enabled);
+	glfwMakeContextCurrent(previous_context);
 }
 
 void rc_window_set_renderer(struct raycaster_window *window, void *renderer) {
@@ -63,6 +70,14 @@ bool rc_window_is_key_down(struct raycaster_window *window, enum input_key key) 
 
 void rc_window_get_mouse_position(struct raycaster_window *window, double *const x, double *const y) {
 	glfwGetCursorPos(window->window, x, y);
+}
+
+void *rc_window_get_load_proc(struct raycaster_window *window) {
+	GLFWwindow *previous_context = glfwGetCurrentContext();
+	glfwMakeContextCurrent(window->window);
+	void *load_proc = glfwGetProcAddress;
+	glfwMakeContextCurrent(previous_context);
+	return load_proc;
 }
 
 bool rc_window_should_close(struct raycaster_window *window) {

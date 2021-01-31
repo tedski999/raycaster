@@ -15,10 +15,11 @@ int main(int argc, char **argv) {
 	const bool window_is_resizable = true, window_is_cursor_disabled = false;
 
 	// Debug variables
-	int tps = 60;             // ticks per second
-	int resolution = 200;     // number of vertical pixels
-	double fov = DEG2RAD(60); // field of view
-	double wall_height = 1.0; // height of raycast walls multiplier
+	int tps = 60;                 // ticks per second
+	int resolution = 200;         // number of vertical pixels
+	double fov = DEG2RAD(60);     // field of view
+	double wall_height = 1.0;     // height of raycast walls multiplier
+	bool is_vsync_enabled = true; // if glfw will wait for vsync
 
 	// TODO: map should have 3 layers: floor, walls, ceiling
 	const int map_width = 24, map_height = 24, map_data[24 * 24] = {
@@ -62,7 +63,7 @@ int main(int argc, char **argv) {
 	};
 
 	// Open a window and assign a raycast renderer to it
-	struct raycaster_window *window = rc_window_create("raycaster", window_width, window_height, window_is_resizable, window_is_cursor_disabled);
+	struct raycaster_window *window = rc_window_create("raycaster", window_width, window_height, window_is_resizable, window_is_cursor_disabled, is_vsync_enabled);
 	struct raycaster_renderer *renderer = rc_renderer_create(window, window_aspect, resolution, fov, wall_height, wall_textures);
 
 	// Game-related objects
@@ -98,6 +99,7 @@ int main(int argc, char **argv) {
 			if (rc_window_is_key_down(window, INPUT_KEY_PERIOD)) rc_renderer_set_wall_height(renderer, wall_height += 0.01);
 			if (rc_window_is_key_down(window, INPUT_KEY_N)) tps++;
 			if (rc_window_is_key_down(window, INPUT_KEY_M)) tps--;
+			if (rc_window_is_key_down(window, INPUT_KEY_V)) rc_window_set_vsync_enabled(window, is_vsync_enabled = !is_vsync_enabled);
 			if (rc_window_is_key_down(window, INPUT_KEY_ESCAPE)) is_running = false;
 		}
 

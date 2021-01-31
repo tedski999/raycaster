@@ -1,5 +1,5 @@
 #ifndef RAYCASTER_WINDOW_H
-#define  RAYCASTER_WINDOW_H
+#define RAYCASTER_WINDOW_H
 
 #include <stdbool.h>
 
@@ -69,11 +69,13 @@ enum input_key {
 
 struct raycaster_window;
 
-struct raycaster_window *rc_window_create(const char *const title, int width, int height, bool is_resizable, bool is_cursor_disabled);
+struct raycaster_window *rc_window_create(const char *const title, int width, int height, bool is_resizable, bool is_cursor_disabled, bool is_vsync_enabled);
+void rc_window_set_vsync_enabled(struct raycaster_window *window, bool is_vsync_enabled);
 void rc_window_set_renderer(struct raycaster_window *window, void *renderer);
 void rc_window_set_as_context(struct raycaster_window *window);
 bool rc_window_is_key_down(struct raycaster_window *window, enum input_key key);
 void rc_window_get_mouse_position(struct raycaster_window *window, double *const x, double *const y);
+void *rc_window_get_load_proc(struct raycaster_window *window);
 bool rc_window_should_close(struct raycaster_window *window);
 void rc_window_update(struct raycaster_window *window);
 void rc_window_render(struct raycaster_window *window);

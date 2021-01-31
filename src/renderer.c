@@ -265,7 +265,10 @@ static struct ray_result rc_renderer_internal_raycast(struct raycaster_map *map,
 static void rc_renderer_internal_initialize_opengl(struct raycaster_renderer *renderer) {
 
 	// Load OpenGL functions for the current context
-	gladLoadGL(); // TODO: get glloader from window?
+	if (renderer->window)
+		gladLoadGLLoader(rc_window_get_load_proc(renderer->window));
+	else
+		gladLoadGL();
 	if (!GLAD_GL_VERSION_3_2) {
 		fprintf(stderr, "Your system doesn't support OpenGL >= 3.2!\n");
 		exit(1);

@@ -3,6 +3,7 @@
 #include "error.h"
 #include <stdlib.h>
 #include <stdio.h>
+#define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
 #define OPENGL_VERSION_MAJOR 3
@@ -70,14 +71,6 @@ bool rc_window_is_key_down(struct raycaster_window *window, enum input_key key) 
 
 void rc_window_get_mouse_position(struct raycaster_window *window, double *const x, double *const y) {
 	glfwGetCursorPos(window->window, x, y);
-}
-
-void *rc_window_get_load_proc(struct raycaster_window *window) {
-	GLFWwindow *previous_context = glfwGetCurrentContext();
-	glfwMakeContextCurrent(window->window);
-	void *load_proc = glfwGetProcAddress;
-	glfwMakeContextCurrent(previous_context);
-	return load_proc;
 }
 
 bool rc_window_should_close(struct raycaster_window *window) {

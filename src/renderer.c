@@ -3,7 +3,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include <glad/glad.h>
+#define GLAD_GL_IMPLEMENTATION
+#include <glad/gl.h>
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
 
 #define FUNKY_LIGHTING 1
 
@@ -290,10 +293,7 @@ static struct ray_result rc_renderer_internal_raycast(struct raycaster_map *map,
 static void rc_renderer_internal_initialize_opengl(struct raycaster_renderer *renderer) {
 
 	// Load OpenGL functions for the current context
-	if (renderer->window)
-		gladLoadGLLoader(rc_window_get_load_proc(renderer->window));
-	else
-		gladLoadGL();
+	gladLoadGL(glfwGetProcAddress);
 	if (!GLAD_GL_VERSION_3_2) {
 		fprintf(stderr, "Your system doesn't support OpenGL >= 3.2!\n");
 		exit(1);

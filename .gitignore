@@ -1,3 +1,6 @@
-
-/raycaster
-
+/*
+!/.gitignore
+!/README.md
+!/Makefile
+!/src
+!/res

@@ -1,13 +1,11 @@
 #include "window.h"
 #include "renderer.h"
 #include "error.h"
+#include "platform.h"
 #include <stdlib.h>
 #include <stdio.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-
-#define OPENGL_VERSION_MAJOR 3
-#define OPENGL_VERSION_MINOR 2
 
 struct raycaster_window {
 	GLFWwindow *window;
@@ -28,8 +26,8 @@ struct raycaster_window *rc_window_create(const char *const title, int width, in
 	
 	// Open window
 	glfwWindowHint(GLFW_RESIZABLE, is_resizable);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, OPENGL_VERSION_MAJOR);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, OPENGL_VERSION_MINOR);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, RC_OPENGL_VERSION_MAJOR);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, RC_OPENGL_VERSION_MINOR);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	struct raycaster_window *window = malloc(sizeof *window);
 	RC_ASSERT(window, "raycaster_window memory allocation");

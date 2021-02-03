@@ -28,10 +28,9 @@ struct raycaster_player *rc_player_create(struct raycaster_window *window, struc
 void rc_player_update(struct raycaster_player *player) {
 
 	// Mouse velocity - TODO: this should be moved to an input module
-	double mouse_x, mouse_y, mouse_vx, mouse_vy;
+	double mouse_x, mouse_y, mouse_vx;
 	rc_window_get_mouse_position(player->window, &mouse_x, &mouse_y);
 	mouse_vx = mouse_x - player->old_mouse_x;
-	mouse_vy = mouse_y - player->old_mouse_y;
 	player->old_mouse_x = mouse_x;
 	player->old_mouse_y = mouse_y;
 

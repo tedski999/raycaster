@@ -185,43 +185,46 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		if (hit.wall == -1)
 			continue;
 
-		// Wall column
-		double wall_length = renderer->wall_height / (hit.distance * renderer->fov);
-		int line_length = renderer->num_rows * wall_length;
-		int rows_skipped = (line_length - renderer->num_rows) / 2; // pixels of the wall below the screen
-		if (rows_skipped < 0)
-			rows_skipped = 0;
-		int starting_row = (renderer->num_rows - line_length) / 2 + rows_skipped;
-		int pixels_index = starting_row * renderer->num_columns + column;
+		// Determine the length, position & co. of the column to be drawn as a vertical line
+		double column_length = renderer->wall_height / (hit.distance * renderer->fov);
+		double col_num_skipped_rows = fmax(1 - column_length, 0) * renderer->num_rows / 2; // Number of pixel rows to skip so the column is drawn in the center of the screen
+		double tex_num_skipped_rows = fmax(column_length - 1, 0) * renderer->num_rows / 2; // Number of texel rows to skip so the texture is aligned with the column if it starts below the screen
 
-		// Wall texture
+		// Find the starting point to sample from and the distance between each sample for the texture of the column to be drawn
 		int tex_width, tex_height;
 		struct raycaster_texture *tex = renderer->wall_textures[hit.wall];
 		rc_texture_get_dimensions(tex, &tex_width, &tex_height);
-		double texels_per_row = (double) tex_height / line_length;
-		double tex_x = hit.latitude * tex_width, tex_y = tex_height - rows_skipped * texels_per_row - 1;
+		double texels_per_row = tex_height / (column_length * renderer->num_rows + 1);
+		double tex_x = hit.latitude * tex_width, tex_y = tex_height - tex_num_skipped_rows * texels_per_row - 1;
+
+		// Texture flipping
 		if ((hit.direction && ray_rx < 0) || (!hit.direction && ray_ry > 0))
 			tex_x = tex_width - tex_x;
 
-		// Iterate over every pixel of the wall within the screen
-		for (int i = rows_skipped; i < line_length - rows_skipped; i++) {
-			unsigned char r, g, b, a;
-			rc_texture_get_pixel(tex, tex_x, tex_y, &r, &g, &b, &a);
+		// Starting at (pixels_x,pixels_y), sample and draw a line straight up until we've reach the top of the wall
+		int pixels_x = column, pixels_y = col_num_skipped_rows;
+		while (pixels_y < renderer->num_rows - col_num_skipped_rows) {
+
+			// Sample (tex_x,tex_y) from tex
+			unsigned char color_r, color_g, color_b, color_a;
+			rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
 
 #if FUNKY_LIGHTING
-			if (wall_length > 1)
-				wall_length = 1;
-			r *= wall_length;
-			g *= wall_length;
-			b *= wall_length;
+			color_r *= fmin(column_length, 1);
+			color_g *= fmin(column_length, 1);
+			color_b *= fmin(column_length, 1);
 #endif
 
-			pixels[4 * pixels_index + 0] = r;
-			pixels[4 * pixels_index + 1] = g;
-			pixels[4 * pixels_index + 2] = b;
-			pixels[4 * pixels_index + 3] = a;
-			pixels_index += renderer->num_columns;
+			// Fill in the pixel (pixels_x,pixels_y) in the PBO
+			int pixels_index = pixels_y * renderer->num_columns + pixels_x;
+			pixels[4 * pixels_index + 0] = color_r;
+			pixels[4 * pixels_index + 1] = color_g;
+			pixels[4 * pixels_index + 2] = color_b;
+			pixels[4 * pixels_index + 3] = color_a;
+
+			// Move directly up exactly one pixel to sample from and draw to
 			tex_y -= texels_per_row;
+			pixels_y++;
 		}
 
 		// TODO: fill z-buffer here
@@ -357,11 +360,11 @@ static void rc_renderer_internal_resize_opengl_buffers(struct raycaster_renderer
 	// Allocate the first PBO - The second one is allocated during the next render
 	// Zero out the new PBO so we don't display garbage for the next frame
 	renderer->current_pbo = 0;
-	unsigned char blank_frame[4 * renderer->num_columns * renderer->num_rows];
-	for (int i = 0; i < 4 * renderer->num_columns * renderer->num_rows; i++)
-		blank_frame[i] = 0;
+	unsigned char *blank_frame = calloc(4 * renderer->num_columns * renderer->num_rows, sizeof *blank_frame);
+	RC_ASSERT(blank_frame, "raycaster_renderer blank_frame memory allocation");
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, renderer->double_pbo[renderer->current_pbo]);
 	glBufferData(GL_PIXEL_UNPACK_BUFFER, 4 * sizeof (unsigned char) * renderer->num_columns * renderer->num_rows, blank_frame, GL_STREAM_DRAW);
+	free(blank_frame);
 
 	// Allocate the texture object buffer - Also transfer the new PBO into it
 	glBindTexture(GL_TEXTURE_2D, renderer->tex);

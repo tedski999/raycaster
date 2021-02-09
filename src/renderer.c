@@ -79,7 +79,7 @@ void rc_renderer_set_wall_textures(struct raycaster_renderer *renderer, struct r
 	renderer->wall_textures = wall_textures;
 }
 
-void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map *map, double x, double y, double r) {
+void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map *map, double x, double y, double z, double r) {
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Render with the current PBO
@@ -101,73 +101,66 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 	rc_map_get_size(map, &map_width, &map_height);
 
 	// Draw floor and ceiling
-	double ray_left_rx = cos(r) + sin(r) * renderer->fov, ray_left_ry = sin(r) - cos(r) * renderer->fov;
-	double ray_right_rx = cos(r) - sin(r) * renderer->fov, ray_right_ry = sin(r) + cos(r) * renderer->fov;
-	for (int row = 0; row < renderer->num_rows / 2; row++) {
-		double row_dist = renderer->wall_height * renderer->num_rows / (renderer->num_rows - 2.0 * row);
-		row_dist *= 1.0 / renderer->fov;
+    double ray_rx = cos(r) + sin(r) * renderer->fov;
+	double ray_ry = sin(r) - cos(r) * renderer->fov;
+	double xtiles_per_column = 2 * renderer->fov * sin(-r) / renderer->num_columns;
+	double ytiles_per_column = 2 * renderer->fov * cos( r) / renderer->num_columns;
+	for (int row = 0; row < renderer->num_rows; row++) {
+		bool is_floor = (row < renderer->num_rows / 2);
 
+		// Find angle from the camera to the floor/ceiling for this row
+		double row_angle = renderer->num_rows - 2 * row;
+		double camera_height = z;
+		if (!is_floor) {
+			row_angle = 1 - row_angle;
+			camera_height = 1 - camera_height;
+		}
+
+		// Find the distance to the floor/ceiling for this row
+		double row_dst = renderer->num_rows * camera_height / row_angle;
+		row_dst *= 2 * renderer->wall_height;
+		row_dst *= 1 / renderer->fov;
+
+		// Draw the column of pixels for this row by sampling the floor/ceiling
+		// textures for all the tiles crossed by this stepping ray
+		double ray_x = x + row_dst * ray_rx;
+		double ray_y = y + row_dst * ray_ry;
+		double ray_step_x = row_dst * xtiles_per_column;
+		double ray_step_y = row_dst * ytiles_per_column;
 		for (int column = 0; column < renderer->num_columns; column++) {
 
-			// Find the tile the ray is in and the position within the tile
-			double angle = (double)column / renderer->num_columns;
-			double ray_x = x + row_dist * (ray_left_rx + angle * (ray_right_rx - ray_left_rx));
-			double ray_y = y + row_dist * (ray_left_ry + angle * (ray_right_ry - ray_left_ry));
-			int tile_x = (int)ray_x;
-			int tile_y = (int)ray_y;
-			double texture_x = ray_x - tile_x;
-			double texture_y = ray_y - tile_y;
+			// Find the current tile and the position within this tile of the ray
+			int tile_x = floor(ray_x);
+			int tile_y = floor(ray_y);
+			ray_x += ray_step_x;
+			ray_y += ray_step_y;
 
 			// Don't draw tiles outside the map
 			if (tile_x < 0 || tile_x >= map_width || tile_y < 0 || tile_y >= map_height)
 				continue;
 
-			unsigned char r, g, b, a;
-			struct raycaster_texture *tex;
+			// Get the pixel color of the position of the ray
 			int tex_width, tex_height;
-			int pixels_index;
-
-			// Find color of floor at this point
-			tex = renderer->wall_textures[rc_map_get_floor(map, tile_x, tile_y)];
+			unsigned char color_r, color_g, color_b, color_a;
+			int tex_index = (is_floor) ? rc_map_get_floor(map, tile_x, tile_y) : rc_map_get_ceiling(map, tile_x, tile_y);
+			struct raycaster_texture *tex = renderer->wall_textures[tex_index];
 			rc_texture_get_dimensions(tex, &tex_width, &tex_height);
-			rc_texture_get_pixel(
-				tex,
-				(int)(tex_width * texture_x) & (tex_width - 1),
-				(int)(tex_height * texture_y) & (tex_height - 1),
-				&r, &g, &b, &a);
+			int tex_x = (int)(tex_width * (ray_x - tile_x)) & (tex_width - 1);
+			int tex_y = (int)(tex_height * (ray_y - tile_y)) & (tex_height - 1);
+			rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
+
 #if FUNKY_LIGHTING
-			r *= 1 - row * 2.0 / renderer->num_rows;
-			g *= 1 - row * 2.0 / renderer->num_rows;
-			b *= 1 - row * 2.0 / renderer->num_rows;
+			color_r *= 1 / fmax(row_dst, 1);
+			color_g *= 1 / fmax(row_dst, 1);
+			color_b *= 1 / fmax(row_dst, 1);
 #endif
 
-			// Draw floor
-			pixels_index = 4 * (row * renderer->num_columns + column);
-			pixels[pixels_index + 0] = r;
-			pixels[pixels_index + 1] = g;
-			pixels[pixels_index + 2] = b;
-			pixels[pixels_index + 3] = 0xff;
-
-			// Find color of ceiling at this point
-			tex = renderer->wall_textures[rc_map_get_ceiling(map, tile_x, tile_y)];
-			rc_texture_get_dimensions(tex, &tex_width, &tex_height);
-			rc_texture_get_pixel(
-				tex,
-				(int)(tex_width * texture_x) & (tex_width - 1),
-				(int)(tex_height * texture_y) & (tex_height - 1),
-				&r, &g, &b, &a);
-#if FUNKY_LIGHTING
-			r *= 1 - row * 2.0 / renderer->num_rows;
-			g *= 1 - row * 2.0 / renderer->num_rows;
-			b *= 1 - row * 2.0 / renderer->num_rows;
-#endif
-
-			// Draw ceiling
-			pixels_index = 4 * ((renderer->num_rows - row - 1) * renderer->num_columns + column);
-			pixels[pixels_index + 0] = r;
-			pixels[pixels_index + 1] = g;
-			pixels[pixels_index + 2] = b;
-			pixels[pixels_index + 3] = 0xff;
+			// Draw pixel to the screen
+			int pixels_index = 4 * (row * renderer->num_columns + column);
+			pixels[pixels_index + 0] = color_r;
+			pixels[pixels_index + 1] = color_g;
+			pixels[pixels_index + 2] = color_b;
+			pixels[pixels_index + 3] = color_a;
 		}
 	}
 
@@ -185,27 +178,32 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		if (hit.wall == -1)
 			continue;
 
-		// Determine the length, position & co. of the column to be drawn as a vertical line
+		// Determine the length and position of the column to be drawn as a vertical line
 		double column_length = renderer->wall_height / (hit.distance * renderer->fov);
-		double col_num_skipped_rows = fmax(1 - column_length, 0) * renderer->num_rows / 2; // Number of pixel rows to skip so the column is drawn in the center of the screen
-		double tex_num_skipped_rows = fmax(column_length - 1, 0) * renderer->num_rows / 2; // Number of texel rows to skip so the texture is aligned with the column if it starts below the screen
+		double column_offset = (z - 0.5) / hit.distance;
+		column_offset *= renderer->wall_height;
+		column_offset *= 1 / renderer->fov;
+		double lower_wall_bound = (1 - column_length) / 2 - column_offset;
+		double upper_wall_bound = (1 + column_length) / 2 - column_offset;
+		int first_row = round(fmax(lower_wall_bound, 0) * renderer->num_rows);
+		int texture_row = round(fmax(-lower_wall_bound, 0) * renderer->num_rows);
+		int last_row = round(fmin(upper_wall_bound, 1) * renderer->num_rows);
 
 		// Find the starting point to sample from and the distance between each sample for the texture of the column to be drawn
 		int tex_width, tex_height;
 		struct raycaster_texture *tex = renderer->wall_textures[hit.wall];
 		rc_texture_get_dimensions(tex, &tex_width, &tex_height);
 		double texels_per_row = tex_height / (column_length * renderer->num_rows + 1);
-		double tex_x = hit.latitude * tex_width, tex_y = tex_height - tex_num_skipped_rows * texels_per_row - 1;
+		double tex_x = hit.latitude * tex_width;
+		double tex_y = tex_height - texture_row * texels_per_row - 1;
 
 		// Texture flipping
 		if ((hit.direction && ray_rx < 0) || (!hit.direction && ray_ry > 0))
 			tex_x = tex_width - tex_x;
 
-		// Starting at (pixels_x,pixels_y), sample and draw a line straight up until we've reach the top of the wall
-		int pixels_x = column, pixels_y = col_num_skipped_rows;
-		while (pixels_y < renderer->num_rows - col_num_skipped_rows) {
+		// Draw a vertical line for the wall column
+		for (int row = first_row; row < last_row; row++) {
 
-			// Sample (tex_x,tex_y) from tex
 			unsigned char color_r, color_g, color_b, color_a;
 			rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
 
@@ -215,16 +213,14 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			color_b *= fmin(column_length, 1);
 #endif
 
-			// Fill in the pixel (pixels_x,pixels_y) in the PBO
-			int pixels_index = pixels_y * renderer->num_columns + pixels_x;
-			pixels[4 * pixels_index + 0] = color_r;
-			pixels[4 * pixels_index + 1] = color_g;
-			pixels[4 * pixels_index + 2] = color_b;
-			pixels[4 * pixels_index + 3] = color_a;
+			// Fill in the pixel in the PBO
+			int pixels_index = 4 * (row * renderer->num_columns + column);
+			pixels[pixels_index + 0] = color_r;
+			pixels[pixels_index + 1] = color_g;
+			pixels[pixels_index + 2] = color_b;
+			pixels[pixels_index + 3] = color_a;
 
-			// Move directly up exactly one pixel to sample from and draw to
 			tex_y -= texels_per_row;
-			pixels_y++;
 		}
 
 		// TODO: fill z-buffer here

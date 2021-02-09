@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
 
 	// Game-related objects
 	struct raycaster_map *map = rc_map_create(map_width, map_height, map_floor, map_walls, map_ceiling);
-	struct raycaster_player *player = rc_player_create(window, map, 2.0, 2.0, DEG2RAD(90));
+	struct raycaster_player *player = rc_player_create(window, map, 2.0, 2.0, 0.5, DEG2RAD(90));
 
 	// Main game loop
 	bool is_running = true;
@@ -115,10 +115,10 @@ int main(int argc, char **argv) {
 		}
 
 		// Render asap
-		double player_x, player_y, player_r;
-		rc_player_get_transform(player, &player_x, &player_y, &player_r);
+		double player_x, player_y, player_z, player_r;
+		rc_player_get_transform(player, &player_x, &player_y, &player_z, &player_r);
 		rc_window_set_as_context(window);
-		rc_renderer_draw(renderer, map, player_x, player_y, player_r);
+		rc_renderer_draw(renderer, map, player_x, player_y, player_z, player_r);
 		rc_window_render(window);
 	}
 

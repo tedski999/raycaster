@@ -1,6 +1,7 @@
 #include "window.h"
 #include "renderer.h"
 #include "player.h"
+#include "input.h"
 #include "map.h"
 #include "timer.h"
 #include <stdbool.h>
@@ -79,7 +80,7 @@ int main(int argc, char **argv) {
 
 	// Game-related objects
 	struct raycaster_map *map = rc_map_create(map_width, map_height, map_floor, map_walls, map_ceiling);
-	struct raycaster_player *player = rc_player_create(window, map, 2.0, 2.0, 0.5, DEG2RAD(90));
+	struct raycaster_player *player = rc_player_create(map, 2.0, 2.0, 0.5, DEG2RAD(90));
 
 	// Main game loop
 	bool is_running = true;
@@ -102,16 +103,16 @@ int main(int argc, char **argv) {
 				is_running = false;
 
 			// Debug input - TODO: write these as text to the screen
-			if (rc_window_is_key_down(window, INPUT_KEY_Q)) rc_renderer_set_fov(renderer, fov -= 0.01);
-			if (rc_window_is_key_down(window, INPUT_KEY_E)) rc_renderer_set_fov(renderer, fov += 0.01);
-			if (rc_window_is_key_down(window, INPUT_KEY_Z)) rc_renderer_set_resolution(renderer, resolution += 2);
-			if (rc_window_is_key_down(window, INPUT_KEY_X)) if (resolution > 1) rc_renderer_set_resolution(renderer, resolution -= 2);
-			if (rc_window_is_key_down(window, INPUT_KEY_COMMA)) rc_renderer_set_wall_height(renderer, wall_height -= 0.01);
-			if (rc_window_is_key_down(window, INPUT_KEY_PERIOD)) rc_renderer_set_wall_height(renderer, wall_height += 0.01);
-			if (rc_window_is_key_down(window, INPUT_KEY_N)) tps++;
-			if (rc_window_is_key_down(window, INPUT_KEY_M)) tps--;
-			if (rc_window_is_key_down(window, INPUT_KEY_V)) rc_window_set_vsync_enabled(window, is_vsync_enabled = !is_vsync_enabled);
-			if (rc_window_is_key_down(window, INPUT_KEY_ESCAPE)) is_running = false;
+			if (rc_input_is_key_down(INPUT_KEY_COMMA))         rc_renderer_set_fov(renderer, fov -= 0.01);
+			if (rc_input_is_key_down(INPUT_KEY_PERIOD))        rc_renderer_set_fov(renderer, fov += 0.01);
+			if (rc_input_is_key_down(INPUT_KEY_LEFT_BRACKET))  rc_renderer_set_wall_height(renderer, wall_height -= 0.01);
+			if (rc_input_is_key_down(INPUT_KEY_RIGHT_BRACKET)) rc_renderer_set_wall_height(renderer, wall_height += 0.01);
+			if (rc_input_is_key_pressed(INPUT_KEY_MINUS))      if (resolution > 1) rc_renderer_set_resolution(renderer, resolution -= 2);
+			if (rc_input_is_key_pressed(INPUT_KEY_EQUALS))     rc_renderer_set_resolution(renderer, resolution += 2);
+			if (rc_input_is_key_pressed(INPUT_KEY_V))          rc_window_set_vsync_enabled(window, is_vsync_enabled = !is_vsync_enabled);
+			if (rc_input_is_key_pressed(INPUT_KEY_ESCAPE))     is_running = false;
+
+			rc_input_update();
 		}
 
 		// Render asap

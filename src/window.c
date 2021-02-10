@@ -1,5 +1,6 @@
 #include "window.h"
 #include "renderer.h"
+#include "input.h"
 #include "error.h"
 #include "platform.h"
 #include <stdlib.h>
@@ -11,8 +12,13 @@ struct raycaster_window {
 	GLFWwindow *window;
 };
 
+static void rc_glfw_keyboard_input_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
+static void rc_glfw_mouse_input_callback(GLFWwindow *window, int button, int action, int mods);
+static void rc_glfw_mouse_movement_callback(GLFWwindow *window, double xpos, double ypos);
 static void rc_glfw_framebuffer_resize_callback(GLFWwindow *window, int width, int height);
 static void rc_glfw_error_callback(int code, const char *desc);
+static enum input_key rc_glfw_convert_keycode(int keycode);
+static enum input_button rc_glfw_convert_button(int button);
 
 static int window_count = 0;
 
@@ -37,6 +43,9 @@ struct raycaster_window *rc_window_create(const char *const title, int width, in
 
 	// Configure window
 	rc_window_set_as_context(window);
+	glfwSetKeyCallback(window->window, rc_glfw_keyboard_input_callback);
+	glfwSetMouseButtonCallback(window->window, rc_glfw_mouse_input_callback);
+	glfwSetCursorPosCallback(window->window, rc_glfw_mouse_movement_callback);
 	glfwSetFramebufferSizeCallback(window->window, rc_glfw_framebuffer_resize_callback);
 	if (is_cursor_disabled)
 		glfwSetInputMode(window->window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -63,14 +72,6 @@ void rc_window_set_as_context(struct raycaster_window *window) {
 	glfwMakeContextCurrent(window->window);
 }
 
-bool rc_window_is_key_down(struct raycaster_window *window, enum input_key key) {
-	return (glfwGetKey(window->window, key) == GLFW_PRESS);
-}
-
-void rc_window_get_mouse_position(struct raycaster_window *window, double *const x, double *const y) {
-	glfwGetCursorPos(window->window, x, y);
-}
-
 bool rc_window_should_close(struct raycaster_window *window) {
 	return glfwWindowShouldClose(window->window);
 }
@@ -92,6 +93,18 @@ void rc_window_destroy(struct raycaster_window *window) {
 		glfwTerminate();
 }
 
+static void rc_glfw_keyboard_input_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	rc_input_set_keyboard_input(rc_glfw_convert_keycode(key), action == GLFW_PRESS || action == GLFW_REPEAT);
+}
+
+static void rc_glfw_mouse_input_callback(GLFWwindow *window, int button, int action, int mods) {
+	rc_input_set_mouse_input(rc_glfw_convert_button(button), action == GLFW_PRESS);
+}
+
+static void rc_glfw_mouse_movement_callback(GLFWwindow *window, double xpos, double ypos) {
+	rc_input_set_mouse_position(xpos, ypos);
+}
+
 static void rc_glfw_framebuffer_resize_callback(GLFWwindow *window, int width, int height) {
 	struct raycaster_renderer *renderer = glfwGetWindowUserPointer(window);
 	if (renderer)
@@ -101,4 +114,55 @@ static void rc_glfw_framebuffer_resize_callback(GLFWwindow *window, int width, i
 static void rc_glfw_error_callback(int code, const char *desc) {
 	fprintf(stderr, "GLFW (ERR %#010x): %s\n", code, desc);
 	exit(1);
+}
+
+static enum input_key rc_glfw_convert_keycode(int keycode) {
+
+	// Alphanumeric keys
+	if (keycode >= GLFW_KEY_A && keycode <= GLFW_KEY_Z)
+		return INPUT_KEY_A + (keycode - GLFW_KEY_A);
+	if (keycode >= GLFW_KEY_0 && keycode <= GLFW_KEY_9)
+		return INPUT_KEY_0 + (keycode - GLFW_KEY_0);
+
+	// Everything else
+	switch (keycode) {
+		case GLFW_KEY_SPACE:         return INPUT_KEY_SPACE;
+		case GLFW_KEY_ENTER:         return INPUT_KEY_ENTER;
+		case GLFW_KEY_BACKSPACE:     return INPUT_KEY_BACKSPACE;
+		case GLFW_KEY_TAB:           return INPUT_KEY_TAB;
+		case GLFW_KEY_ESCAPE:        return INPUT_KEY_ESCAPE;
+		case GLFW_KEY_LEFT_SHIFT:    return INPUT_KEY_SHIFT;
+		case GLFW_KEY_RIGHT_SHIFT:   return INPUT_KEY_RIGHT_SHIFT;
+		case GLFW_KEY_LEFT_CONTROL:  return INPUT_KEY_CONTROL;
+		case GLFW_KEY_RIGHT_CONTROL: return INPUT_KEY_RIGHT_CONTROL;
+		case GLFW_KEY_LEFT_ALT:      return INPUT_KEY_ALT;
+		case GLFW_KEY_RIGHT_ALT:     return INPUT_KEY_RIGHT_ALT;
+		case GLFW_KEY_LEFT_BRACKET:  return INPUT_KEY_LEFT_BRACKET;
+		case GLFW_KEY_RIGHT_BRACKET: return INPUT_KEY_RIGHT_BRACKET;
+		case GLFW_KEY_SEMICOLON:     return INPUT_KEY_SEMICOLON;
+		case GLFW_KEY_APOSTROPHE:    return INPUT_KEY_APOSTROPHE;
+		case GLFW_KEY_COMMA:         return INPUT_KEY_COMMA;
+		case GLFW_KEY_PERIOD:        return INPUT_KEY_PERIOD;
+		case GLFW_KEY_SLASH:         return INPUT_KEY_SLASH;
+		case GLFW_KEY_BACKSLASH:     return INPUT_KEY_BACKSLASH;
+		case GLFW_KEY_MINUS:         return INPUT_KEY_MINUS;
+		case GLFW_KEY_EQUAL:         return INPUT_KEY_EQUALS;
+		case GLFW_KEY_INSERT:        return INPUT_KEY_INSERT;
+		case GLFW_KEY_DELETE:        return INPUT_KEY_DELETE;
+		case GLFW_KEY_HOME:          return INPUT_KEY_HOME;
+		case GLFW_KEY_END:           return INPUT_KEY_END;
+		case GLFW_KEY_PAGE_UP:       return INPUT_KEY_PAGE_UP;
+		case GLFW_KEY_PAGE_DOWN:     return INPUT_KEY_PAGE_DOWN;
+		case GLFW_KEY_RIGHT:         return INPUT_KEY_RIGHT;
+		case GLFW_KEY_LEFT:          return INPUT_KEY_LEFT;
+		case GLFW_KEY_DOWN:          return INPUT_KEY_DOWN;
+		case GLFW_KEY_UP:            return INPUT_KEY_UP;
+		default: return 0;
+	}
+}
+
+static enum input_button rc_glfw_convert_button(int button) {
+	if (button >= GLFW_MOUSE_BUTTON_1 && button <= GLFW_MOUSE_BUTTON_8)
+		return INPUT_BUTTON_1 + (button - GLFW_MOUSE_BUTTON_1);
+	return 0;
 }

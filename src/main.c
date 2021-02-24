@@ -60,13 +60,11 @@ int main(int argc, char **argv) {
 		0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 6, 6, 6, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 	};
-	const int map_lights_count = 5;
-	const struct raycaster_light map_lights[5] = {
-		{ 2,  2, 0xff, 0x00, 0x00, 4 },
-		{ 6,  2, 0x00, 0xff, 0x00, 4 },
-		{ 5,  8, 0x00, 0x00, 0xff, 4 },
-		{ 13, 2, 0xff, 0xff, 0xff, 4 },
-		{ 17, 2, 0xff, 0xff, 0xff, 8 }
+	const int map_lights_count = 3;
+	const struct raycaster_light map_lights[3] = {
+		{ 1,  1, 0xff, 0x00, 0x00, 10, 5.0 },
+		{ 10, 7, 0x00, 0x60, 0xff, 10, 5.0 },
+		{ 17, 7, 0x40, 0x40, 0x40, 10, 5.0 },
 	};
 
 	// Load textures
@@ -88,7 +86,7 @@ int main(int argc, char **argv) {
 
 	// Game-related objects
 	struct raycaster_map *map = rc_map_create(map_width, map_height, map_floor, map_walls, map_ceiling);
-	struct raycaster_player *player = rc_player_create(map, 18.0, 2.0, 0.5, DEG2RAD(90));
+	struct raycaster_player *player = rc_player_create(map, 2.0, 2.0, 0.5, DEG2RAD(90));
 	rc_map_regenerate_lighting(map, map_lights, map_lights_count);
 
 	// Main game loop

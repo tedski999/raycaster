@@ -3,11 +3,11 @@
 
 struct raycaster_map;
 
-// TODO: replace .intensity with .a and .decay
 struct raycaster_light {
 	int x, y;
 	unsigned char r, g, b;
-	int intensity;
+	int range;
+	double falloff;
 };
 
 struct raycaster_map *rc_map_create(int map_width, int map_height, const int *const floor, const int *const walls, const int *const ceiling);

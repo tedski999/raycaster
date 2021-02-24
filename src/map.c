@@ -44,7 +44,7 @@ void rc_map_regenerate_lighting(struct raycaster_map *map, const struct raycaste
 	for (int i = 0; i < lights_count; i++) {
 
 		// Skip disabled lights
-		if (lights[i].intensity == 0)
+		if (lights[i].range == 0)
 			continue;
 
 		// A boolean array for marking visited tiles
@@ -52,27 +52,28 @@ void rc_map_regenerate_lighting(struct raycaster_map *map, const struct raycaste
 		is_tile_visited[lights[i].y * map->width + lights[i].x] = true;
 
 		// Queue data structure for breadth first search
-		int tile_queue_capacity = lights[i].intensity * 4;
+		int tile_queue_capacity = 4 * lights[i].range;
 		int tile_queue_front_index = 0, tile_queue_back_index = 0;
 		int *tile_queue = malloc(sizeof *tile_queue * tile_queue_capacity * 2);
 		tile_queue[0] = lights[i].x;
 		tile_queue[1] = lights[i].y;
 
 		// Keep processing tiles until theres none left to process (either out of lighting range or all tiles have been visited)
-		int cur_intensity = lights[i].intensity;
-		int cur_intensity_tiles_remaining = 1;
-		while (cur_intensity > 0 && tile_queue_front_index <= tile_queue_back_index) {
+		int distance = 0, distance_tiles_remaining = 1;
+		while (distance <= lights[i].range && tile_queue_front_index <= tile_queue_back_index) {
 
 			// Dequeue tile to process
-			int cur_tile_x = tile_queue[tile_queue_front_index % tile_queue_capacity * 2 + 0];
-			int cur_tile_y = tile_queue[tile_queue_front_index % tile_queue_capacity * 2 + 1];
-			tile_queue_front_index++;
+			int dequeue_index = tile_queue_front_index++ % tile_queue_capacity * 2;
+			int cur_tile_x = tile_queue[dequeue_index + 0];
+			int cur_tile_y = tile_queue[dequeue_index + 1];
 
 			// Apply lighting of tile
 			int lighting_index = 3 * (cur_tile_y * map->width + cur_tile_x);
-			map->lighting[lighting_index + 0] = fmin(255, map->lighting[lighting_index + 0] + lights[i].r * cur_intensity / 8.0);
-			map->lighting[lighting_index + 1] = fmin(255, map->lighting[lighting_index + 1] + lights[i].g * cur_intensity / 8.0);
-			map->lighting[lighting_index + 2] = fmin(255, map->lighting[lighting_index + 2] + lights[i].b * cur_intensity / 8.0);
+			double intensity = 1 - (double)distance / lights[i].range; // lighting attenuation linear component
+			intensity = pow(intensity, lights[i].falloff);             // lighting attenuation exponential component
+			map->lighting[lighting_index + 0] = fmin(0xff, map->lighting[lighting_index + 0] + lights[i].r * intensity);
+			map->lighting[lighting_index + 1] = fmin(0xff, map->lighting[lighting_index + 1] + lights[i].g * intensity);
+			map->lighting[lighting_index + 2] = fmin(0xff, map->lighting[lighting_index + 2] + lights[i].b * intensity);
 
 			// Add valid surrounding tiles to the queue
 			int adjacent_tile_step_x[4] = { 0, 1, 0, -1 };
@@ -89,15 +90,15 @@ void rc_map_regenerate_lighting(struct raycaster_map *map, const struct raycaste
 
 				// Enqueue tile
 				is_tile_visited[next_tile_y * map->width + next_tile_x] = true;
-				tile_queue_back_index++;
-				tile_queue[tile_queue_back_index % tile_queue_capacity * 2 + 0] = next_tile_x;
-				tile_queue[tile_queue_back_index % tile_queue_capacity * 2 + 1] = next_tile_y;
+				int enqueue_index = ++tile_queue_back_index % tile_queue_capacity * 2;
+				tile_queue[enqueue_index + 0] = next_tile_x;
+				tile_queue[enqueue_index + 1] = next_tile_y;
 			}
 
 			// Reduce the light intensity after all the tiles for this light intensity have been processed
-			if (--cur_intensity_tiles_remaining <= 0) {
-				cur_intensity_tiles_remaining = tile_queue_back_index - tile_queue_front_index + 1;
-				cur_intensity--;
+			if (--distance_tiles_remaining <= 0) {
+				distance_tiles_remaining = tile_queue_back_index - tile_queue_front_index + 1;
+				distance++;
 			}
 		}
 

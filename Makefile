@@ -3,7 +3,7 @@ TARGET  = raycaster
 CC      = gcc
 CFLAGS  = -Wall -pedantic -O3
 LFLAGS  = -lm -ldl -lglfw
-SRC_FILES = src/*.c
+SRC_FILES := $(wildcard src/*.c)
 
 .PHONY: all
 all: out/$(TARGET)

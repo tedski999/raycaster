@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
 
 	// Debug map
 	const int map_width = 20, map_height = 10;
-	const int map_floor[] = {
+	const int map_floor[20*10] = {
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 4, 4, 4, 0,
 		0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 0, 0, 4, 4, 4, 0,
@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
 		0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 	};
-	const int map_walls[] = {
+	const int map_walls[20*10] = {
 		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 4, 4, 4, 4, 4,
 		1,-1,-1, 1,-1,-1,-1,-1,-1,-1,-1,-1, 3, 1, 1, 4,-1,-1,-1, 4,
 		1,-1,-1, 1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1, 4,-1,-1,-1, 4,
@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
 		1,-1,-1, 1,-1,-1,-1,-1,-1,-1,-1,-1, 1, 1, 1, 6,-1,-1,-1, 6,
 		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 6, 6, 7, 6, 6
 	};
-	const int map_ceiling[] = {
+	const int map_ceiling[20*10] = {
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 4, 4, 4, 0,
 		0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 0, 0, 4, 4, 4, 0,
@@ -59,6 +59,14 @@ int main(int argc, char **argv) {
 		0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 6, 6, 6, 6, 0,
 		0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 6, 6, 6, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+	};
+	const int map_lights_count = 5;
+	const struct raycaster_light map_lights[5] = {
+		{ 2,  2, 0xff, 0x00, 0x00, 4 },
+		{ 6,  2, 0x00, 0xff, 0x00, 4 },
+		{ 5,  8, 0x00, 0x00, 0xff, 4 },
+		{ 13, 2, 0xff, 0xff, 0xff, 4 },
+		{ 17, 2, 0xff, 0xff, 0xff, 8 }
 	};
 
 	// Load textures
@@ -80,7 +88,8 @@ int main(int argc, char **argv) {
 
 	// Game-related objects
 	struct raycaster_map *map = rc_map_create(map_width, map_height, map_floor, map_walls, map_ceiling);
-	struct raycaster_player *player = rc_player_create(map, 2.0, 2.0, 0.5, DEG2RAD(90));
+	struct raycaster_player *player = rc_player_create(map, 18.0, 2.0, 0.5, DEG2RAD(90));
+	rc_map_regenerate_lighting(map, map_lights, map_lights_count);
 
 	// Main game loop
 	bool is_running = true;
@@ -110,6 +119,7 @@ int main(int argc, char **argv) {
 			if (rc_input_is_key_pressed(INPUT_KEY_MINUS))      if (resolution > 1) rc_renderer_set_resolution(renderer, resolution -= 2);
 			if (rc_input_is_key_pressed(INPUT_KEY_EQUALS))     rc_renderer_set_resolution(renderer, resolution += 2);
 			if (rc_input_is_key_pressed(INPUT_KEY_V))          rc_window_set_vsync_enabled(window, is_vsync_enabled = !is_vsync_enabled);
+			if (rc_input_is_key_pressed(INPUT_KEY_L))          rc_map_regenerate_lighting(map, map_lights, map_lights_count);
 			if (rc_input_is_key_pressed(INPUT_KEY_ESCAPE))     is_running = false;
 
 			rc_input_update();

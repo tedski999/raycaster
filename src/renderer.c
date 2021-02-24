@@ -8,8 +8,6 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#define FUNKY_LIGHTING 1
-
 struct raycaster_renderer {
 	struct raycaster_window *window;
 	double aspect, fov, wall_height;
@@ -20,12 +18,7 @@ struct raycaster_renderer {
 	int current_pbo;
 };
 
-struct ray_result {
-	double distance, latitude;
-	int direction, wall;
-};
-
-static struct ray_result rc_renderer_internal_raycast(struct raycaster_map *map, double x, double y, double a);
+static void rc_renderer_internal_raycast(struct raycaster_map *map, double x, double y, double a, int *hit_x, int *hit_y, int *hit_side, double *hit_dst, double *hit_lat);
 static void rc_renderer_internal_initialize_opengl(struct raycaster_renderer *renderer);
 static void rc_renderer_internal_resize_opengl_buffers(struct raycaster_renderer *renderer);
 static unsigned rc_renderer_internal_create_shader(const char *const filepath, GLenum shader_type);
@@ -101,6 +94,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 	rc_map_get_size(map, &map_width, &map_height);
 
 	// Draw floor and ceiling
+	// TODO: offset by one column
     double ray_rx = cos(r) + sin(r) * renderer->fov;
 	double ray_ry = sin(r) - cos(r) * renderer->fov;
 	double xtiles_per_column = 2 * renderer->fov * sin(-r) / renderer->num_columns;
@@ -149,11 +143,12 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			int tex_y = (int)(tex_height * (ray_y - tile_y)) & (tex_height - 1);
 			rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
 
-#if FUNKY_LIGHTING
-			color_r *= 1 / fmax(row_dst, 1);
-			color_g *= 1 / fmax(row_dst, 1);
-			color_b *= 1 / fmax(row_dst, 1);
-#endif
+			// Apply lighting
+			unsigned char light_r, light_g, light_b;
+			rc_map_get_lighting(map, ray_x, ray_y, &light_r, &light_g, &light_b);
+			color_r *= (double)light_r / 0xff;
+			color_g *= (double)light_g / 0xff;
+			color_b *= (double)light_b / 0xff;
 
 			// Draw pixel to the screen
 			int pixels_index = 4 * (row * renderer->num_columns + column);
@@ -168,19 +163,22 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 	for (int column = 0; column < renderer->num_columns; column++) {
 
 		// Find distance from nearest wall to camera plane
+		int hit_x, hit_y, hit_side;
+		double hit_dst, hit_lat;
 		double ray_offset = ((2.0 * column / renderer->num_columns) - 1) * renderer->fov;
 		double ray_rx = cos(r) - sin(r) * ray_offset;
 		double ray_ry = sin(r) + cos(r) * ray_offset;
-		struct ray_result hit = rc_renderer_internal_raycast(map, x, y, atan2(ray_ry, ray_rx));
-		hit.distance *= 1 / sqrt(ray_rx * ray_rx + ray_ry * ray_ry);
+		rc_renderer_internal_raycast(map, x, y, atan2(ray_ry, ray_rx), &hit_x, &hit_y, &hit_side, &hit_dst, &hit_lat);
+		hit_dst *= 1 / sqrt(ray_rx * ray_rx + ray_ry * ray_ry);
 
 		// Don't draw empty walls
-		if (hit.wall == -1)
+		int hit_wall = rc_map_get_wall(map, hit_x, hit_y);
+		if (hit_wall == -1)
 			continue;
 
 		// Determine the length and position of the column to be drawn as a vertical line
-		double column_length = renderer->wall_height / (hit.distance * renderer->fov);
-		double column_offset = (z - 0.5) / hit.distance;
+		double column_length = renderer->wall_height / (hit_dst * renderer->fov);
+		double column_offset = (z - 0.5) / hit_dst;
 		column_offset *= renderer->wall_height;
 		column_offset *= 1 / renderer->fov;
 		double lower_wall_bound = (1 - column_length) / 2 - column_offset;
@@ -191,15 +189,21 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 
 		// Find the starting point to sample from and the distance between each sample for the texture of the column to be drawn
 		int tex_width, tex_height;
-		struct raycaster_texture *tex = renderer->wall_textures[hit.wall];
+		struct raycaster_texture *tex = renderer->wall_textures[hit_wall];
 		rc_texture_get_dimensions(tex, &tex_width, &tex_height);
 		double texels_per_row = tex_height / (column_length * renderer->num_rows + 1);
-		double tex_x = hit.latitude * tex_width;
+		double tex_x = hit_lat * tex_width;
 		double tex_y = tex_height - texture_row * texels_per_row - 1;
 
 		// Texture flipping
-		if ((hit.direction && ray_rx < 0) || (!hit.direction && ray_ry > 0))
+		if ((hit_side && ray_rx < 0) || (!hit_side && ray_ry > 0))
 			tex_x = tex_width - tex_x;
+
+		// Sample lighting from tile adjecent to surface rather than the tile of the wall hit
+		if (hit_side)
+			(ray_rx < 0) ? hit_x++ : hit_x--;
+		else
+			(ray_ry < 0) ? hit_y++ : hit_y--;
 
 		// Draw a vertical line for the wall column
 		for (int row = first_row; row < last_row; row++) {
@@ -207,11 +211,12 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			unsigned char color_r, color_g, color_b, color_a;
 			rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
 
-#if FUNKY_LIGHTING
-			color_r *= fmin(column_length, 1);
-			color_g *= fmin(column_length, 1);
-			color_b *= fmin(column_length, 1);
-#endif
+			// Apply lighting
+			unsigned char light_r, light_g, light_b;
+			rc_map_get_lighting(map, hit_x, hit_y, &light_r, &light_g, &light_b);
+			color_r *= (double)light_r / 0xff;
+			color_g *= (double)light_g / 0xff;
+			color_b *= (double)light_b / 0xff;
 
 			// Fill in the pixel in the PBO
 			int pixels_index = 4 * (row * renderer->num_columns + column);
@@ -239,54 +244,40 @@ void rc_renderer_destroy(struct raycaster_renderer *renderer) {
 	glDeleteProgram(renderer->shader);
 }
 
-static struct ray_result rc_renderer_internal_raycast(struct raycaster_map *map, double x, double y, double a) {
+static void rc_renderer_internal_raycast(struct raycaster_map *map, double x, double y, double a, int *hit_x, int *hit_y, int *hit_side, double *hit_dst, double *hit_lat) {
 
 	// Starting point
-	int tx = x, ty = y;
-	double rx = x - tx, ry = y - ty;
+	*hit_x = x, *hit_y = y;
+	double distance_x = x - *hit_x, distance_y = y - *hit_y;
 
 	// Direction vector
-	double ax = cos(a), ay = sin(a);
-	double dx = fabs(1 / ax), dy = fabs(1 / ay);
+	double angle_x = cos(a), angle_y = sin(a);
+	double delta_x = fabs(1 / angle_x), delta_y = fabs(1 / angle_y);
 
 	// Flip step vector for negative directions
-	int sx = -1, sy = -1;
-	if (ax >= 0) { rx = 1 - rx; sx = 1; }
-	if (ay >= 0) { ry = 1 - ry; sy = 1; }
-	rx *= dx; ry *= dy;
-
-	// Get bounds of the map
-	int map_width, map_height;
-	rc_map_get_size(map, &map_width, &map_height);
+	int step_x = -1, step_y = -1;
+	if (angle_x >= 0) { distance_x = 1 - distance_x; step_x = 1; }
+	if (angle_y >= 0) { distance_y = 1 - distance_y; step_y = 1; }
+	distance_x *= delta_x; distance_y *= delta_y;
 
 	// Euclidean distance to the nearest wall
-	struct ray_result hit = { 0, 0, 0, -1 };
-	while ((hit.wall = rc_map_get_wall(map, tx, ty)) == -1) {
-		if (rx < ry) {
-			hit.distance = rx;
-			hit.direction = 1;
-			rx += dx;
-			tx += sx;
+	*hit_side = 0;
+	while (rc_map_get_wall(map, *hit_x, *hit_y) == -1) {
+		if (distance_x < distance_y) {
+			*hit_side = 1;
+			*hit_x += step_x;
+			distance_x += delta_x;
 		} else {
-			hit.distance = ry;
-			hit.direction = 0;
-			ry += dy;
-			ty += sy;
+			*hit_side = 0;
+			*hit_y += step_y;
+			distance_y += delta_y;
 		}
-
-		// If ray is now out of bounds, abort
-		if (tx < 0 || tx >= map_width || ty < 0 || ty >= map_height)
-			break;
 	}
 
-	// Calculate hit position on the wall surface
-	if (hit.direction)
-		hit.latitude = y + ay * hit.distance;
-	else
-		hit.latitude = x + ax * hit.distance;
-	hit.latitude -= (int)hit.latitude;
-
-	return hit;
+	// Calculate distance and point on the wall surface
+	*hit_dst = (*hit_side) ? distance_x - delta_x : distance_y - delta_y;
+	*hit_lat = (*hit_side) ? y + angle_y * *hit_dst : x + angle_x * *hit_dst;
+	*hit_lat -= (int)*hit_lat;
 }
 
 static void rc_renderer_internal_initialize_opengl(struct raycaster_renderer *renderer) {
@@ -364,7 +355,7 @@ static void rc_renderer_internal_resize_opengl_buffers(struct raycaster_renderer
 
 	// Allocate the texture object buffer - Also transfer the new PBO into it
 	glBindTexture(GL_TEXTURE_2D, renderer->tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderer->num_columns, renderer->num_rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderer->num_columns, renderer->num_rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL); // TODO: watch out for max texture size
 
 	// Done - Unbind buffers
 	glBindTexture(GL_TEXTURE_2D, 0);

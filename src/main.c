@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
 	// Game-related objects
 	struct raycaster_map *map = rc_map_create(map_width, map_height, map_floor, map_walls, map_ceiling);
 	struct raycaster_player *player = rc_player_create(map, 2.0, 2.0, 0.5, DEG2RAD(90));
-	rc_map_regenerate_lighting(map, map_lights, map_lights_count);
+	rc_map_regenerate_lighting(map, 0x10, 0x10, 0x10, map_lights, map_lights_count);
 
 	// Main game loop
 	bool is_running = true;
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
 			if (rc_input_is_key_pressed(INPUT_KEY_MINUS))      if (resolution > 1) rc_renderer_set_resolution(renderer, resolution -= 2);
 			if (rc_input_is_key_pressed(INPUT_KEY_EQUALS))     rc_renderer_set_resolution(renderer, resolution += 2);
 			if (rc_input_is_key_pressed(INPUT_KEY_V))          rc_window_set_vsync_enabled(window, is_vsync_enabled = !is_vsync_enabled);
-			if (rc_input_is_key_pressed(INPUT_KEY_L))          rc_map_regenerate_lighting(map, map_lights, map_lights_count);
+			if (rc_input_is_key_pressed(INPUT_KEY_L))          rc_map_regenerate_lighting(map, 0x10, 0x10, 0x10, map_lights, map_lights_count);
 			if (rc_input_is_key_pressed(INPUT_KEY_ESCAPE))     is_running = false;
 
 			rc_input_update();

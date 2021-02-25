@@ -30,14 +30,13 @@ struct raycaster_map *rc_map_create(int map_width, int map_height, const int *co
 	return map;
 }
 
-void rc_map_regenerate_lighting(struct raycaster_map *map, const struct raycaster_light *const lights, int lights_count) {
+void rc_map_regenerate_lighting(struct raycaster_map *map, unsigned char ambient_r, unsigned char ambient_g, unsigned char ambient_b, const struct raycaster_light *const lights, int lights_count) {
 
 	// Ambient lighting
-	// TODO: configurable
 	for (int i = 0; i < map->width * map->height; i++) {
-		map->lighting[3 * i + 0] = 0x10;
-		map->lighting[3 * i + 1] = 0x10;
-		map->lighting[3 * i + 2] = 0x10;
+		map->lighting[3 * i + 0] = ambient_r;
+		map->lighting[3 * i + 1] = ambient_g;
+		map->lighting[3 * i + 2] = ambient_b;
 	}
 
 	// Per-light grid distance lighting
@@ -49,12 +48,14 @@ void rc_map_regenerate_lighting(struct raycaster_map *map, const struct raycaste
 
 		// A boolean array for marking visited tiles
 		bool *is_tile_visited = calloc(map->width * map->height, sizeof *is_tile_visited);
+		RC_ASSERT(is_tile_visited, "rc_map_regenerate_lighting is_tile_visited memory allocation");
 		is_tile_visited[lights[i].y * map->width + lights[i].x] = true;
 
 		// Queue data structure for breadth first search
 		int tile_queue_capacity = 4 * lights[i].range;
 		int tile_queue_front_index = 0, tile_queue_back_index = 0;
 		int *tile_queue = malloc(sizeof *tile_queue * tile_queue_capacity * 2);
+		RC_ASSERT(tile_queue, "rc_map_regenerate_lighting tile_queue memory allocation");
 		tile_queue[0] = lights[i].x;
 		tile_queue[1] = lights[i].y;
 

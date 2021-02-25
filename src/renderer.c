@@ -146,9 +146,9 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			// Apply lighting
 			unsigned char light_r, light_g, light_b;
 			rc_map_get_lighting(map, ray_x, ray_y, &light_r, &light_g, &light_b);
-			color_r *= (double)light_r / 0xff;
-			color_g *= (double)light_g / 0xff;
-			color_b *= (double)light_b / 0xff;
+			color_r *= light_r / 0xffp0;
+			color_g *= light_g / 0xffp0;
+			color_b *= light_b / 0xffp0;
 
 			// Draw pixel to the screen
 			int pixels_index = 4 * (row * renderer->num_columns + column);
@@ -214,9 +214,9 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			// Apply lighting
 			unsigned char light_r, light_g, light_b;
 			rc_map_get_lighting(map, hit_x, hit_y, &light_r, &light_g, &light_b);
-			color_r *= (double)light_r / 0xff;
-			color_g *= (double)light_g / 0xff;
-			color_b *= (double)light_b / 0xff;
+			color_r *= light_r / 0xffp0;
+			color_g *= light_g / 0xffp0;
+			color_b *= light_b / 0xffp0;
 
 			// Fill in the pixel in the PBO
 			int pixels_index = 4 * (row * renderer->num_columns + column);

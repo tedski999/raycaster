@@ -11,7 +11,7 @@ struct raycaster_light {
 };
 
 struct raycaster_map *rc_map_create(int map_width, int map_height, const int *const floor, const int *const walls, const int *const ceiling);
-void rc_map_regenerate_lighting(struct raycaster_map *map, const struct raycaster_light *const lights, int lights_count);
+void rc_map_regenerate_lighting(struct raycaster_map *map, unsigned char ambient_r, unsigned char ambient_g, unsigned char ambient_b, const struct raycaster_light *const lights, int lights_count);
 void rc_map_get_size(struct raycaster_map *map, int *width, int *height);
 int rc_map_get_floor(struct raycaster_map *map, int x, int y);
 int rc_map_get_wall(struct raycaster_map *map, int x, int y);

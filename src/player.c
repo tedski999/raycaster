@@ -21,68 +21,64 @@
 #define player_crawl_bobbing_mag 0.005
 #define player_crawl_bobbing_freq 0.15
 
-struct raycaster_player {
-	struct raycaster_map *map;
-	double position_x, position_y, position_z, rotation;
-	double velocity_x, velocity_y;
+struct raycaster_player_data {
+	double vel_x, vel_y;
 	int movement_ticks;
 };
 
-struct raycaster_player *rc_player_create(struct raycaster_map *map, double position_x, double position_y, double position_z, double rotation) {
-	struct raycaster_player *player = malloc(sizeof *player);
-	RC_ASSERT(player, "raycaster_player memory allocation");
-	*player = (struct raycaster_player) { map, position_x, position_y, position_z, rotation };
-	return player;
+void rc_player_init(struct raycaster_entity *player) {
+	struct raycaster_player_data *player_data = calloc(1, sizeof *player_data);
+	RC_ASSERT(player_data, "raycaster_player_data memory allocation");
+	rc_entity_set_data_pointer(player, player_data);
 }
 
-void rc_player_update(struct raycaster_player *player) {
+void rc_player_update(struct raycaster_entity *player, struct raycaster_map *map) {
+
+	double player_x, player_y, player_z, player_r;
+	rc_entity_get_transform(player, &player_x, &player_y, &player_z, &player_r);
+	struct raycaster_player_data *player_data = rc_entity_get_data_pointer(player);
 
 	// Crawling
 	bool is_crawling = rc_input_is_key_down(INPUT_KEY_SHIFT);
 	double target_height = (is_crawling) ? player_crawl_height : player_normal_height;
-	player->position_z = player->position_z * (1 - player_height_speed) + target_height * player_height_speed;
+	player_z = player_z * (1 - player_height_speed) + target_height * player_height_speed;
 
 	// Player rotation input
 	double mouse_vx, mouse_vy;
 	rc_input_get_mouse_velocity(&mouse_vx, &mouse_vy);
-	player->rotation += mouse_vx;
-	if (rc_input_is_key_down(INPUT_KEY_RIGHT)) player->rotation += player_turn_speed;
-	if (rc_input_is_key_down(INPUT_KEY_LEFT)) player->rotation -= player_turn_speed;
+	player_r += mouse_vx;
+	if (rc_input_is_key_down(INPUT_KEY_RIGHT)) player_r += player_turn_speed;
+	if (rc_input_is_key_down(INPUT_KEY_LEFT)) player_r -= player_turn_speed;
 
 	// Player movement input
 	double accel = (is_crawling) ? player_crawl_accel : player_normal_accel;
 	double max_speed = (is_crawling) ? player_crawl_speed : player_normal_speed;
-	double target_velocity_x = 0, target_velocity_y = 0;
-	if (rc_input_is_key_down(INPUT_KEY_W)) { target_velocity_x += cos(player->rotation) * max_speed; target_velocity_y += sin(player->rotation) * max_speed; }
-	if (rc_input_is_key_down(INPUT_KEY_S)) { target_velocity_x -= cos(player->rotation) * max_speed; target_velocity_y -= sin(player->rotation) * max_speed; }
-	if (rc_input_is_key_down(INPUT_KEY_D)) { target_velocity_x -= sin(player->rotation) * max_speed; target_velocity_y += cos(player->rotation) * max_speed; }
-	if (rc_input_is_key_down(INPUT_KEY_A)) { target_velocity_x += sin(player->rotation) * max_speed; target_velocity_y -= cos(player->rotation) * max_speed; }
-	player->velocity_x = player->velocity_x * (1 - accel) + target_velocity_x * accel;
-	player->velocity_y = player->velocity_y * (1 - accel) + target_velocity_y * accel;
+	double target_vel_x = 0, target_vel_y = 0;
+	if (rc_input_is_key_down(INPUT_KEY_W)) { target_vel_x += cos(player_r) * max_speed; target_vel_y += sin(player_r) * max_speed; }
+	if (rc_input_is_key_down(INPUT_KEY_S)) { target_vel_x -= cos(player_r) * max_speed; target_vel_y -= sin(player_r) * max_speed; }
+	if (rc_input_is_key_down(INPUT_KEY_D)) { target_vel_x -= sin(player_r) * max_speed; target_vel_y += cos(player_r) * max_speed; }
+	if (rc_input_is_key_down(INPUT_KEY_A)) { target_vel_x += sin(player_r) * max_speed; target_vel_y -= cos(player_r) * max_speed; }
+	player_data->vel_x = player_data->vel_x * (1 - accel) + target_vel_x * accel;
+	player_data->vel_y = player_data->vel_y * (1 - accel) + target_vel_y * accel;
 
 	// Check for collision before applying velocity
-	if (rc_map_get_wall(player->map, floor(player->position_x + player->velocity_x), player->position_y) == -1)
-		player->position_x += player->velocity_x;
-	if (rc_map_get_wall(player->map, player->position_x, floor(player->position_y + player->velocity_y)) == -1)
-		player->position_y += player->velocity_y;
+	if (rc_map_get_wall(map, floor(player_x + player_data->vel_x), player_y) == -1)
+		player_x += player_data->vel_x;
+	if (rc_map_get_wall(map, player_x, floor(player_y + player_data->vel_y)) == -1)
+		player_y += player_data->vel_y;
 
 	// Head bobbing
-	player->movement_ticks++;
-	double velocity_mag = sqrt(player->velocity_x * player->velocity_x + player->velocity_y * player->velocity_y);
-	if (velocity_mag < player_min_speed)
-		player->movement_ticks = 0;
+	player_data->movement_ticks++;
+	double vel_mag = sqrt(player_data->vel_x * player_data->vel_x + player_data->vel_y * player_data->vel_y);
+	if (vel_mag < player_min_speed)
+		player_data->movement_ticks = 0;
 	double freq = (is_crawling) ? player_crawl_bobbing_freq : player_normal_bobbing_freq;
 	double mag = (is_crawling) ? player_crawl_bobbing_mag : player_normal_bobbing_mag;
-	player->position_z += sin(player->movement_ticks * freq) * mag * velocity_mag / max_speed;
+	player_z += sin(player_data->movement_ticks * freq) * mag * vel_mag / max_speed;
+
+	rc_entity_set_transform(player, player_x, player_y, player_z, player_r);
 }
 
-void rc_player_get_transform(struct raycaster_player *player, double *position_x, double *position_y, double *position_z, double *rotation) {
-	*position_x = player->position_x;
-	*position_y = player->position_y;
-	*position_z = player->position_z;
-	*rotation = player->rotation;
-}
-
-void rc_player_destroy(struct raycaster_player *player) {
-	free(player);
+void rc_player_destroy(struct raycaster_entity *player) {
+	free(rc_entity_get_data_pointer(player));
 }

@@ -10,7 +10,7 @@
 
 struct raycaster_renderer {
 	struct raycaster_window *window;
-	double aspect, fov, wall_height;
+	double aspect, fov;
 	struct raycaster_texture **wall_textures;
 	int num_columns, num_rows;
 	unsigned vao, vbo, ibo;
@@ -27,13 +27,12 @@ static unsigned rc_renderer_internal_create_shader_program(unsigned shaders[], i
 static void rc_renderer_internal_opengl_message_callback(GLenum source, GLenum type, unsigned id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
 #endif
 
-struct raycaster_renderer *rc_renderer_create(struct raycaster_window *window, double aspect, int resolution, double fov, double wall_height, struct raycaster_texture **wall_textures) {
+struct raycaster_renderer *rc_renderer_create(struct raycaster_window *window, double aspect, int resolution, double fov, struct raycaster_texture **wall_textures) {
 	struct raycaster_renderer *renderer = malloc(sizeof *renderer);
 	RC_ASSERT(renderer, "raycaster_renderer memory allocation");
 	*renderer = (struct raycaster_renderer) { window, aspect };
 	rc_renderer_internal_initialize_opengl(renderer);
 	rc_renderer_set_fov(renderer, fov);
-	rc_renderer_set_wall_height(renderer, wall_height);
 	rc_renderer_set_wall_textures(renderer, wall_textures);
 	rc_renderer_set_resolution(renderer, resolution);
 	rc_window_set_renderer(window, renderer);
@@ -64,18 +63,14 @@ void rc_renderer_set_resolution(struct raycaster_renderer *renderer, int resolut
 	rc_renderer_internal_resize_opengl_buffers(renderer);
 }
 
-void rc_renderer_set_wall_height(struct raycaster_renderer *renderer, double wall_height) {
-	renderer->wall_height = wall_height;
-}
-
 void rc_renderer_set_wall_textures(struct raycaster_renderer *renderer, struct raycaster_texture **wall_textures) {
 	renderer->wall_textures = wall_textures;
 }
 
-void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map *map, double x, double y, double z, double r) {
-	glClear(GL_COLOR_BUFFER_BIT);
+void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map *map, struct raycaster_entity **entities, int entities_count, struct raycaster_entity *camera) {
 
 	// Render with the current PBO
+	glClear(GL_COLOR_BUFFER_BIT);
 	glUseProgram(renderer->shader);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, renderer->double_pbo[renderer->current_pbo]);
     glBindTexture(GL_TEXTURE_2D, renderer->tex);
@@ -90,8 +85,13 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 	glBufferData(GL_PIXEL_UNPACK_BUFFER, 4 * sizeof (unsigned char) * renderer->num_columns * renderer->num_rows, NULL, GL_STREAM_DRAW);
 	unsigned char *pixels = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
 
+	// Prepare for drawing
 	int map_width, map_height;
+	double x, y, z, r;
 	rc_map_get_size(map, &map_width, &map_height);
+	rc_entity_get_transform(camera, &x, &y, &z, &r);
+	double *zbuffer = malloc(sizeof *zbuffer * renderer->num_columns);
+	RC_ASSERT(zbuffer, "zbuffer memory allocation");
 
 	// Draw floor and ceiling
 	// TODO: offset by one column
@@ -111,9 +111,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		}
 
 		// Find the distance to the floor/ceiling for this row
-		double row_dst = renderer->num_rows * camera_height / row_angle;
-		row_dst *= 2 * renderer->wall_height;
-		row_dst *= 1 / renderer->fov;
+		double row_dst = 2 * renderer->num_rows * camera_height / row_angle / renderer->fov;
 
 		// Draw the column of pixels for this row by sampling the floor/ceiling
 		// textures for all the tiles crossed by this stepping ray
@@ -165,7 +163,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		// Find distance from nearest wall to camera plane
 		int hit_x, hit_y, hit_side;
 		double hit_dst, hit_lat;
-		double ray_offset = ((2.0 * column / renderer->num_columns) - 1) * renderer->fov;
+		double ray_offset = (2.0 * column / renderer->num_columns - 1) * renderer->fov;
 		double ray_rx = cos(r) - sin(r) * ray_offset;
 		double ray_ry = sin(r) + cos(r) * ray_offset;
 		rc_renderer_internal_raycast(map, x, y, atan2(ray_ry, ray_rx), &hit_x, &hit_y, &hit_side, &hit_dst, &hit_lat);
@@ -177,10 +175,8 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			continue;
 
 		// Determine the length and position of the column to be drawn as a vertical line
-		double column_length = renderer->wall_height / (hit_dst * renderer->fov);
-		double column_offset = (z - 0.5) / hit_dst;
-		column_offset *= renderer->wall_height;
-		column_offset *= 1 / renderer->fov;
+		double column_length = 1.0 / hit_dst / renderer->fov;
+		double column_offset = (z - 0.5) / hit_dst / renderer->fov;
 		double lower_wall_bound = (1 - column_length) / 2 - column_offset;
 		double upper_wall_bound = (1 + column_length) / 2 - column_offset;
 		int first_row = round(fmax(lower_wall_bound, 0) * renderer->num_rows);
@@ -192,18 +188,15 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		struct raycaster_texture *tex = renderer->wall_textures[hit_wall];
 		rc_texture_get_dimensions(tex, &tex_width, &tex_height);
 		double texels_per_row = tex_height / (column_length * renderer->num_rows + 1);
-		double tex_x = hit_lat * tex_width;
-		double tex_y = tex_height - texture_row * texels_per_row - 1;
+		double tex_x = hit_lat * tex_width, tex_y = tex_height - texture_row * texels_per_row - 1;
 
 		// Texture flipping
 		if ((hit_side && ray_rx < 0) || (!hit_side && ray_ry > 0))
 			tex_x = tex_width - tex_x;
 
 		// Sample lighting from tile adjecent to surface rather than the tile of the wall hit
-		if (hit_side)
-			(ray_rx < 0) ? hit_x++ : hit_x--;
-		else
-			(ray_ry < 0) ? hit_y++ : hit_y--;
+		if (hit_side) (ray_rx < 0) ? hit_x++ : hit_x--;
+		else          (ray_ry < 0) ? hit_y++ : hit_y--;
 
 		// Draw a vertical line for the wall column
 		for (int row = first_row; row < last_row; row++) {
@@ -228,9 +221,85 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			tex_y -= texels_per_row;
 		}
 
-		// TODO: fill z-buffer here
+		zbuffer[column] = hit_dst;
 	}
 
+	// Draw entities
+	// TODO: sort entities here
+	for (int i = 0; i < entities_count; i++) {
+		struct raycaster_texture *tex = rc_entity_get_texture(entities[i]);
+
+		// Skip untextured entities
+		if (!tex)
+			continue;
+
+		// Get entity transformation and lighting
+		double entity_x, entity_y, entity_z, entity_r, entity_s = 1.0;
+		unsigned char light_r, light_g, light_b;
+		rc_entity_get_transform(entities[i], &entity_x, &entity_y, &entity_z, &entity_r);
+		rc_map_get_lighting(map, entity_x, entity_y, &light_r, &light_g, &light_b);
+
+		// Calculate entitys screen transformation relative to camera
+		double entity_offset_x = entity_x - x, entity_offset_y = entity_y - y, entity_offset_z = entity_z - z;
+		double entity_transform_x = entity_offset_y * cos(r) - entity_offset_x * sin(r);
+		double entity_transform_y = entity_offset_x * cos(r) + entity_offset_y * sin(r);
+
+		// Skip entities outside camera view
+		if (entity_transform_y < 0)
+			continue;
+
+		// Calculate pixel coordinates of texture
+		double texture_x_scaling = renderer->num_columns * (1.0 + entity_transform_x / entity_transform_y / renderer->fov);
+		double texture_y_scaling = renderer->num_rows * entity_s / entity_transform_y / renderer->fov;
+		double texture_z_scaling = renderer->num_rows * entity_offset_z / entity_transform_y / renderer->fov;
+		int first_column = round(fmax((texture_x_scaling - texture_y_scaling) / 2.0, 0));
+		int last_column  = round(fmin((texture_x_scaling + texture_y_scaling) / 2.0, renderer->num_columns));
+		int first_row    = round(fmax((renderer->num_rows - texture_y_scaling) / 2.0 + texture_z_scaling, 0));
+		int last_row     = round(fmin((renderer->num_rows + texture_y_scaling) / 2.0 + texture_z_scaling, renderer->num_rows));
+
+		// TODO: calculate tex_x and tex_y by finding the difference between the start row/column and the current one
+		// might be possible to do something like the wall textures
+
+		int tex_width, tex_height;
+		rc_texture_get_dimensions(tex, &tex_width, &tex_height);
+		for (int column = first_column; column < last_column; column++) {
+
+			// Skip column if hidden behind a wall
+			if (entity_transform_y > zbuffer[column])
+				continue;
+
+			for (int row = first_row; row < last_row; row++) {
+
+				//int tex_x = (2 * column - texture_x_scaling + texture_y_scaling) * tex_width / texture_y_scaling / 2;
+				//int tex_y = (2 * row - renderer->num_rows + texture_y_scaling) * tex_height / texture_y_scaling / 2;
+				//tex_y -= entity_offset_z * tex_height;
+				//tex_y = tex_height - tex_y - 1;
+
+				// Sample texture
+				unsigned char color_r, color_g, color_b, color_a;
+				//rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
+				color_r = color_g = color_b = color_a = 0xff;
+
+				// Black is a transparent pixel
+				if (!color_r && !color_g && !color_b)
+					continue;
+
+				// Apply lighting
+				color_r *= light_r / 0xffp0;
+				color_g *= light_g / 0xffp0;
+				color_b *= light_b / 0xffp0;
+
+				// Fill in the pixel in the PBO
+				int pixels_index = 4 * (row * renderer->num_columns + column);
+				pixels[pixels_index + 0] = color_r;
+				pixels[pixels_index + 1] = color_g;
+				pixels[pixels_index + 2] = color_b;
+				pixels[pixels_index + 3] = color_a;
+			}
+		}
+	}
+
+	free(zbuffer);
 	glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }

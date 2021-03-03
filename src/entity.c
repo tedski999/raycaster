@@ -33,6 +33,10 @@ void rc_entity_get_transform(struct raycaster_entity *entity, double *x, double 
 	*r = entity->r;
 }
 
+struct raycaster_texture *rc_entity_get_texture(struct raycaster_entity *entity) {
+	return entity->texture;
+}
+
 void rc_entity_set_data_pointer(struct raycaster_entity *entity, void *data_pointer) {
 	entity->data_pointer = data_pointer;
 }

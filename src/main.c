@@ -21,8 +21,21 @@ int main(int argc, char **argv) {
 	int tps = 60;                 // ticks per second
 	int resolution = 200;         // number of vertical pixels
 	double fov = DEG2RAD(60);     // field of view
-	double wall_height = 1.0;     // height of raycast walls multiplier
 	bool is_vsync_enabled = true; // if glfw will wait for vsync
+
+	// Load textures
+	const int wall_textures_count = 8;
+	struct raycaster_texture *wall_textures[8] = {
+		rc_texture_load("res/textures/wood.png"),
+		rc_texture_load("res/textures/greystone.png"),
+		rc_texture_load("res/textures/mossy.png"),
+		rc_texture_load("res/textures/bluestone.png"),
+		rc_texture_load("res/textures/purplestone.png"),
+		rc_texture_load("res/textures/colorstone.png"),
+		rc_texture_load("res/textures/redbrick.png"),
+		rc_texture_load("res/textures/eagle.png")
+	};
+	struct raycaster_texture *light_texture = rc_texture_load("res/textures/barrel.png");
 
 	// Debug map
 	const int map_width = 20, map_height = 10;
@@ -68,28 +81,16 @@ int main(int argc, char **argv) {
 		{ 10, 7, 0x00, 0x60, 0xff, 10, 5.0 },
 		{ 17, 7, 0x40, 0x40, 0x40, 10, 5.0 },
 	};
-	const int entities_count = 1;
-	struct raycaster_entity *entities[1] = {
-		rc_entity_create(2.5, 2.5, 0.5, 0.0, NULL, rc_player_init, rc_player_update, rc_player_destroy)
+	const int entities_count = 2;
+	struct raycaster_entity *entities[3] = {
+		rc_entity_create(2.5, 2.5, 0.5, 0.0, NULL, rc_player_init, rc_player_update, rc_player_destroy),
+		rc_entity_create(10.5, 7.5, 0.5, 0.0, light_texture, NULL, NULL, NULL)
 	};
 	struct raycaster_entity *player = entities[0];
 
-	// Load textures
-	const int wall_textures_count = 8;
-	struct raycaster_texture *wall_textures[8] = {
-		rc_texture_load("res/textures/wood.png"),
-		rc_texture_load("res/textures/greystone.png"),
-		rc_texture_load("res/textures/mossy.png"),
-		rc_texture_load("res/textures/bluestone.png"),
-		rc_texture_load("res/textures/purplestone.png"),
-		rc_texture_load("res/textures/colorstone.png"),
-		rc_texture_load("res/textures/redbrick.png"),
-		rc_texture_load("res/textures/eagle.png")
-	};
-
 	// Create the window, renderer and map
 	struct raycaster_window *window = rc_window_create("raycaster", window_width, window_height, window_is_resizable, window_is_cursor_disabled, is_vsync_enabled);
-	struct raycaster_renderer *renderer = rc_renderer_create(window, window_aspect, resolution, fov, wall_height, wall_textures);
+	struct raycaster_renderer *renderer = rc_renderer_create(window, window_aspect, resolution, fov, wall_textures);
 	struct raycaster_map *map = rc_map_create(map_width, map_height, map_floor, map_walls, map_ceiling);
 	rc_map_regenerate_lighting(map, 0x10, 0x10, 0x10, map_lights, map_lights_count);
 
@@ -117,8 +118,6 @@ int main(int argc, char **argv) {
 			// Debug input - TODO: write these as text to the screen
 			if (rc_input_is_key_down(INPUT_KEY_COMMA))         rc_renderer_set_fov(renderer, fov -= 0.01);
 			if (rc_input_is_key_down(INPUT_KEY_PERIOD))        rc_renderer_set_fov(renderer, fov += 0.01);
-			if (rc_input_is_key_down(INPUT_KEY_LEFT_BRACKET))  rc_renderer_set_wall_height(renderer, wall_height -= 0.01);
-			if (rc_input_is_key_down(INPUT_KEY_RIGHT_BRACKET)) rc_renderer_set_wall_height(renderer, wall_height += 0.01);
 			if (rc_input_is_key_pressed(INPUT_KEY_MINUS))      if (resolution > 1) rc_renderer_set_resolution(renderer, resolution -= 2);
 			if (rc_input_is_key_pressed(INPUT_KEY_EQUALS))     rc_renderer_set_resolution(renderer, resolution += 2);
 			if (rc_input_is_key_pressed(INPUT_KEY_V))          rc_window_set_vsync_enabled(window, is_vsync_enabled = !is_vsync_enabled);
@@ -129,10 +128,8 @@ int main(int argc, char **argv) {
 		}
 
 		// Render asap
-		double player_x, player_y, player_z, player_r;
-		rc_entity_get_transform(player, &player_x, &player_y, &player_z, &player_r);
 		rc_window_set_as_context(window);
-		rc_renderer_draw(renderer, map, player_x, player_y, player_z, player_r);
+		rc_renderer_draw(renderer, map, entities, entities_count, player);
 		rc_window_render(window);
 	}
 
@@ -145,4 +142,5 @@ int main(int argc, char **argv) {
 		rc_entity_destroy(entities[i]);
 	for (int i = 0; i < wall_textures_count; i++)
 		rc_texture_unload(wall_textures[i]);
+	rc_texture_unload(light_texture);
 }

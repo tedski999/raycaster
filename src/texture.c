@@ -33,6 +33,6 @@ void rc_texture_get_pixel(struct raycaster_texture *texture, int x, int y, unsig
 }
 
 void rc_texture_unload(struct raycaster_texture *texture) {
-    stbi_image_free(texture->data);
+	stbi_image_free(texture->data);
 	free(texture);
 }

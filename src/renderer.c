@@ -73,11 +73,11 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 	glClear(GL_COLOR_BUFFER_BIT);
 	glUseProgram(renderer->shader);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, renderer->double_pbo[renderer->current_pbo]);
-    glBindTexture(GL_TEXTURE_2D, renderer->tex);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, renderer->num_columns, renderer->num_rows, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glBindTexture(GL_TEXTURE_2D, renderer->tex);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, renderer->num_columns, renderer->num_rows, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 	glBindVertexArray(renderer->vao);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// Flip PBOs and draw to the new current PBO
 	renderer->current_pbo ^= 1;
@@ -95,7 +95,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 
 	// Draw floor and ceiling
 	// TODO: offset by one column
-    double ray_rx = cos(r) + sin(r) * renderer->fov;
+	double ray_rx = cos(r) + sin(r) * renderer->fov;
 	double ray_ry = sin(r) - cos(r) * renderer->fov;
 	double xtiles_per_column = 2 * renderer->fov * sin(-r) / renderer->num_columns;
 	double ytiles_per_column = 2 * renderer->fov * cos( r) / renderer->num_columns;
@@ -362,7 +362,7 @@ static void rc_renderer_internal_initialize_opengl(struct raycaster_renderer *re
 	glDebugMessageCallback(rc_renderer_internal_opengl_message_callback, 0);
 #endif
 	printf("%s - %s\n", glGetString(GL_VENDOR), glGetString(GL_RENDERER));
-    printf("OpenGL %s, GLSL %s\n", glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
+	printf("OpenGL %s, GLSL %s\n", glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
 
 	// A quad which fills the viewport - Will be the canvas for our software rendered texture
 	unsigned quad_indices[] = { 0, 1, 3, 1, 2, 3 };
@@ -397,10 +397,10 @@ static void rc_renderer_internal_initialize_opengl(struct raycaster_renderer *re
 	// Generate the OpenGL buffers for mapping a texture onto the quad with double-buffered PBOs
 	glGenBuffers(2, renderer->double_pbo);
 	glGenTextures(1, &renderer->tex);
-    glBindTexture(GL_TEXTURE_2D, renderer->tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glBindTexture(GL_TEXTURE_2D, 0);
+	glBindTexture(GL_TEXTURE_2D, renderer->tex);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// Create the shader to be used
 	unsigned shaders[2];

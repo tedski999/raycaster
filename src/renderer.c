@@ -59,6 +59,7 @@ void rc_renderer_set_fov(struct raycaster_renderer *renderer, double fov) {
 }
 
 void rc_renderer_set_resolution(struct raycaster_renderer *renderer, int resolution) {
+	RC_ASSERT(resolution > 1, "Unreasonable resolution");
 	renderer->num_columns = renderer->aspect * resolution;
 	renderer->num_rows = resolution;
 	rc_renderer_internal_resize_opengl_buffers(renderer);
@@ -93,7 +94,6 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 	rc_entity_get_transform(camera, &cam_x, &cam_y, &cam_z, &cam_r);
 
 	// Draw floor and ceiling
-	// TODO: offset by one column
 	double ray_rx = cos(cam_r) + sin(cam_r) * renderer->fov;
 	double ray_ry = sin(cam_r) - cos(cam_r) * renderer->fov;
 	double xtiles_per_column = 2 * renderer->fov * sin(-cam_r) / renderer->num_columns;
@@ -109,22 +109,17 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			camera_height = 1 - camera_height;
 		}
 
-		// Find the distance to the floor/ceiling for this row
-		double row_dst = 2 * renderer->num_rows * camera_height / row_angle / renderer->fov;
-
 		// Draw the column of pixels for this row by sampling the floor/ceiling
 		// textures for all the tiles crossed by this stepping ray
-		double ray_x = cam_x + row_dst * ray_rx;
-		double ray_y = cam_y + row_dst * ray_ry;
-		double ray_step_x = row_dst * xtiles_per_column;
-		double ray_step_y = row_dst * ytiles_per_column;
+		double row_dst = 2 * renderer->num_rows * camera_height / row_angle / renderer->fov;
+		double ray_x = cam_x + row_dst * ray_rx, ray_y = cam_y + row_dst * ray_ry;
+		double ray_step_x = row_dst * xtiles_per_column, ray_step_y = row_dst * ytiles_per_column;
 		for (int column = 0; column < renderer->num_columns; column++) {
 
 			// Find the current tile and the position within this tile of the ray
-			int tile_x = floor(ray_x);
-			int tile_y = floor(ray_y);
-			ray_x += ray_step_x;
-			ray_y += ray_step_y;
+			int tile_x = ray_x, tile_y = ray_y;
+			double tile_offset_x = ray_x - tile_x, tile_offset_y = ray_y - tile_y;
+			ray_x += ray_step_x; ray_y += ray_step_y;
 
 			// Don't draw tiles outside the map
 			if (tile_x < 0 || tile_x >= map_width || tile_y < 0 || tile_y >= map_height)
@@ -136,13 +131,12 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			int tex_index = (is_floor) ? rc_map_get_floor(map, tile_x, tile_y) : rc_map_get_ceiling(map, tile_x, tile_y);
 			struct raycaster_texture *tex = renderer->wall_textures[tex_index];
 			rc_texture_get_dimensions(tex, &tex_width, &tex_height);
-			int tex_x = (int)(tex_width * (ray_x - tile_x)) & (tex_width - 1);
-			int tex_y = (int)(tex_height * (ray_y - tile_y)) & (tex_height - 1);
+			int tex_x = tex_width * tile_offset_x, tex_y = tex_height * tile_offset_y;
 			rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
 
 			// Apply lighting
 			unsigned char light_r, light_g, light_b;
-			rc_map_get_lighting(map, ray_x, ray_y, &light_r, &light_g, &light_b);
+			rc_map_get_lighting(map, tile_x + tile_offset_x, tile_y + tile_offset_y, &light_r, &light_g, &light_b);
 			color_r *= light_r / 0xffp0;
 			color_g *= light_g / 0xffp0;
 			color_b *= light_b / 0xffp0;

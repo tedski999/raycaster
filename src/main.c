@@ -8,7 +8,23 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#define DEG2RAD(degree) (degree * 3.14152 / 180)
+#define PI 3.14159265358979323846
+#define DEG2RAD(degree) (degree * PI / 180)
+
+// Funky wandering barrel update function
+#include <math.h>
+void rc_barrel_update(struct raycaster_entity *barrel, struct raycaster_map *map) {
+	double x, y, z, r;
+	rc_entity_get_transform(barrel, &x, &y, &z, &r);
+
+	// Walk forward, turn right if there's a wall 0.5 units in-front
+	if (rc_map_get_wall(map, x + cos(r) * 0.5, y + sin(r) * 0.5) != -1)
+		r += DEG2RAD(90);
+	x += cos(r) * 0.025;
+	y += sin(r) * 0.025;
+
+	rc_entity_set_transform(barrel, x, y, z, r);
+}
 
 int main(int argc, char **argv) {
 
@@ -81,10 +97,16 @@ int main(int argc, char **argv) {
 		{ 10, 7, 0x00, 0x60, 0xff, 10, 5.0 },
 		{ 17, 7, 0x40, 0x40, 0x40, 10, 5.0 },
 	};
-	const int entities_count = 2;
-	struct raycaster_entity *entities[3] = {
-		rc_entity_create(2.5, 2.5, 0.5, 0.0, NULL, rc_player_init, rc_player_update, rc_player_destroy),
-		rc_entity_create(10.5, 7.5, 0.5, 0.0, light_texture, NULL, NULL, NULL)
+	const int entities_count = 8;
+	struct raycaster_entity *entities[8] = {
+		rc_entity_create(2.5,  2.5, 0.5, 0.0, NULL, rc_player_init, rc_player_update, rc_player_destroy),
+		rc_entity_create(10.5, 7.5, 0.5, 0.0, light_texture, NULL, rc_barrel_update, NULL),
+		rc_entity_create(2.5,  2.5, 0.5, 0.0, light_texture, NULL, rc_barrel_update, NULL),
+		rc_entity_create(18.5, 2.5, 0.5, 0.0, light_texture, NULL, rc_barrel_update, NULL),
+		rc_entity_create(7.5,  5.5, 0.5, 0.0, light_texture, NULL, rc_barrel_update, NULL),
+		rc_entity_create(18.5, 5.5, 0.5, 0.0, light_texture, NULL, rc_barrel_update, NULL),
+		rc_entity_create(2.5,  3.5, 0.5, 0.0, light_texture, NULL, rc_barrel_update, NULL),
+		rc_entity_create(12.5, 3.5, 0.5, 0.0, light_texture, NULL, rc_barrel_update, NULL)
 	};
 	struct raycaster_entity *player = entities[0];
 

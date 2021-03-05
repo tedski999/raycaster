@@ -99,19 +99,12 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 	double xtiles_per_column = 2 * renderer->fov * sin(-cam_r) / renderer->num_columns;
 	double ytiles_per_column = 2 * renderer->fov * cos( cam_r) / renderer->num_columns;
 	for (int row = 0; row < renderer->num_rows; row++) {
-		bool is_floor = (row < renderer->num_rows / 2);
-
-		// Find angle from the camera to the floor/ceiling for this row
-		double row_angle = renderer->num_rows - 2 * row;
-		double camera_height = cam_z;
-		if (!is_floor) {
-			row_angle = 1 - row_angle;
-			camera_height = 1 - camera_height;
-		}
+		bool is_floor = row < renderer->num_rows / 2;
 
 		// Draw the column of pixels for this row by sampling the floor/ceiling
 		// textures for all the tiles crossed by this stepping ray
-		double row_dst = 2 * renderer->num_rows * camera_height / row_angle / renderer->fov;
+		double row_angle = renderer->num_rows - 2 * row;
+		double row_dst = 2 * renderer->num_rows / renderer->fov * ((is_floor) ? cam_z / row_angle : (1 - cam_z) / (1 - row_angle));
 		double ray_x = cam_x + row_dst * ray_rx, ray_y = cam_y + row_dst * ray_ry;
 		double ray_step_x = row_dst * xtiles_per_column, ray_step_y = row_dst * ytiles_per_column;
 		for (int column = 0; column < renderer->num_columns; column++) {
@@ -127,25 +120,20 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 
 			// Get the pixel color of the position of the ray
 			int tex_width, tex_height;
+			unsigned char light_r, light_g, light_b;
 			unsigned char color_r, color_g, color_b, color_a;
+			rc_map_get_lighting(map, tile_x + tile_offset_x, tile_y + tile_offset_y, &light_r, &light_g, &light_b);
 			int tex_index = (is_floor) ? rc_map_get_floor(map, tile_x, tile_y) : rc_map_get_ceiling(map, tile_x, tile_y);
 			struct raycaster_texture *tex = renderer->wall_textures[tex_index];
 			rc_texture_get_dimensions(tex, &tex_width, &tex_height);
 			int tex_x = tex_width * tile_offset_x, tex_y = tex_height * tile_offset_y;
 			rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
 
-			// Apply lighting
-			unsigned char light_r, light_g, light_b;
-			rc_map_get_lighting(map, tile_x + tile_offset_x, tile_y + tile_offset_y, &light_r, &light_g, &light_b);
-			color_r *= light_r / 0xffp0;
-			color_g *= light_g / 0xffp0;
-			color_b *= light_b / 0xffp0;
-
 			// Draw pixel to the screen
 			int pixels_index = 4 * (row * renderer->num_columns + column);
-			pixels[pixels_index + 0] = color_r;
-			pixels[pixels_index + 1] = color_g;
-			pixels[pixels_index + 2] = color_b;
+			pixels[pixels_index + 0] = color_r * light_r / 0xffp0;
+			pixels[pixels_index + 1] = color_g * light_g / 0xffp0;
+			pixels[pixels_index + 2] = color_b * light_b / 0xffp0;
 			pixels[pixels_index + 3] = color_a;
 		}
 	}
@@ -161,6 +149,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		double ray_ry = sin(cam_r) + cos(cam_r) * ray_offset;
 		rc_renderer_internal_raycast(map, cam_x, cam_y, atan2(ray_ry, ray_rx), &hit_x, &hit_y, &hit_side, &hit_dst, &hit_lat);
 		hit_dst *= 1 / sqrt(ray_rx * ray_rx + ray_ry * ray_ry);
+		renderer->zbuffer[column] = hit_dst;
 
 		// Don't draw empty walls
 		int hit_wall = rc_map_get_wall(map, hit_x, hit_y);
@@ -194,27 +183,20 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		// Draw a vertical line for the wall column
 		for (int row = first_row; row < last_row; row++) {
 
-			unsigned char color_r, color_g, color_b, color_a;
-			rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
-
-			// Apply lighting
+			// Sample texture
 			unsigned char light_r, light_g, light_b;
+			unsigned char color_r, color_g, color_b, color_a;
 			rc_map_get_lighting(map, hit_x, hit_y, &light_r, &light_g, &light_b);
-			color_r *= light_r / 0xffp0;
-			color_g *= light_g / 0xffp0;
-			color_b *= light_b / 0xffp0;
+			rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
+			tex_y -= texels_per_row;
 
 			// Fill in the pixel in the PBO
 			int pixels_index = 4 * (row * renderer->num_columns + column);
-			pixels[pixels_index + 0] = color_r;
-			pixels[pixels_index + 1] = color_g;
-			pixels[pixels_index + 2] = color_b;
+			pixels[pixels_index + 0] = color_r * light_r / 0xffp0;
+			pixels[pixels_index + 1] = color_g * light_g / 0xffp0;
+			pixels[pixels_index + 2] = color_b * light_b / 0xffp0;
 			pixels[pixels_index + 3] = color_a;
-
-			tex_y -= texels_per_row;
 		}
-
-		renderer->zbuffer[column] = hit_dst;
 	}
 
 	// Draw entities
@@ -227,7 +209,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			continue;
 
 		// Get entity transformation and lighting
-		double entity_x, entity_y, entity_z, entity_r, entity_s = 1.0;
+		double entity_x, entity_y, entity_z, entity_r, entity_s = 1.0; // TODO: entity scaling
 		unsigned char light_r, light_g, light_b;
 		rc_entity_get_transform(entities[i], &entity_x, &entity_y, &entity_z, &entity_r);
 		rc_map_get_lighting(map, entity_x, entity_y, &light_r, &light_g, &light_b);
@@ -237,7 +219,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 		double entity_transform_x = entity_offset_y * cos(cam_r) - entity_offset_x * sin(cam_r);
 		double entity_transform_y = entity_offset_x * cos(cam_r) + entity_offset_y * sin(cam_r);
 
-		// Skip entities outside camera view
+		// Skip entities behind camera view
 		if (entity_transform_y < 0)
 			continue;
 
@@ -275,7 +257,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 			if (entity_transform_y > renderer->zbuffer[column])
 				continue;
 
-				// Iterate over every row on the screen that contains the texture being drawn
+			// Iterate over every row on the screen that contains the texture being drawn
 			for (int row = first_row; row < last_row; row++) {
 
 				// Calculate texture sample point
@@ -284,23 +266,17 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, struct raycaster_map 
 				tex_y = tex_height - tex_y - 1;
 
 				// Sample texture
+				// TODO: used RBGA instead of RBG textures, currently black is a transparent pixel
 				unsigned char color_r, color_g, color_b, color_a;
 				rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
-
-				// Black is a transparent pixel
 				if (!color_r && !color_g && !color_b)
 					continue;
 
-				// Apply lighting
-				color_r *= light_r / 0xffp0;
-				color_g *= light_g / 0xffp0;
-				color_b *= light_b / 0xffp0;
-
 				// Fill in the pixel in the PBO
 				int pixels_index = 4 * (row * renderer->num_columns + column);
-				pixels[pixels_index + 0] = color_r;
-				pixels[pixels_index + 1] = color_g;
-				pixels[pixels_index + 2] = color_b;
+				pixels[pixels_index + 0] = color_r * light_r / 0xffp0;
+				pixels[pixels_index + 1] = color_g * light_g / 0xffp0;
+				pixels[pixels_index + 2] = color_b * light_b / 0xffp0;
 				pixels[pixels_index + 3] = color_a;
 			}
 		}

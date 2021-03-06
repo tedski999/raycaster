@@ -1,6 +1,8 @@
 #include "player.h"
-#include "input.h"
 #include "error.h"
+#include "input.h"
+#include "entity.h"
+#include "map.h"
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
@@ -33,14 +35,13 @@ void rc_player_init(struct raycaster_entity *player) {
 }
 
 void rc_player_update(struct raycaster_entity *player, struct raycaster_map *map) {
-
 	double player_x, player_y, player_z, player_r;
 	rc_entity_get_transform(player, &player_x, &player_y, &player_z, &player_r);
 	struct raycaster_player_data *player_data = rc_entity_get_data_pointer(player);
 
 	// Crawling
-	bool is_crawling = rc_input_is_key_down(INPUT_KEY_SHIFT);
-	double target_height = (is_crawling) ? player_crawl_height : player_normal_height;
+	const bool is_crawling = rc_input_is_key_down(INPUT_KEY_SHIFT);
+	const double target_height = (is_crawling) ? player_crawl_height : player_normal_height;
 	player_z = player_z * (1 - player_height_speed) + target_height * player_height_speed;
 
 	// Player rotation input
@@ -51,8 +52,8 @@ void rc_player_update(struct raycaster_entity *player, struct raycaster_map *map
 	if (rc_input_is_key_down(INPUT_KEY_LEFT)) player_r -= player_turn_speed;
 
 	// Player movement input
-	double accel = (is_crawling) ? player_crawl_accel : player_normal_accel;
-	double max_speed = (is_crawling) ? player_crawl_speed : player_normal_speed;
+	const double accel = (is_crawling) ? player_crawl_accel : player_normal_accel;
+	const double max_speed = (is_crawling) ? player_crawl_speed : player_normal_speed;
 	double target_vel_x = 0, target_vel_y = 0;
 	if (rc_input_is_key_down(INPUT_KEY_W)) { target_vel_x += cos(player_r) * max_speed; target_vel_y += sin(player_r) * max_speed; }
 	if (rc_input_is_key_down(INPUT_KEY_S)) { target_vel_x -= cos(player_r) * max_speed; target_vel_y -= sin(player_r) * max_speed; }
@@ -69,11 +70,11 @@ void rc_player_update(struct raycaster_entity *player, struct raycaster_map *map
 
 	// Head bobbing
 	player_data->movement_ticks++;
-	double vel_mag = sqrt(player_data->vel_x * player_data->vel_x + player_data->vel_y * player_data->vel_y);
+	const double vel_mag = sqrt(player_data->vel_x * player_data->vel_x + player_data->vel_y * player_data->vel_y);
 	if (vel_mag < player_min_speed)
 		player_data->movement_ticks = 0;
-	double freq = (is_crawling) ? player_crawl_bobbing_freq : player_normal_bobbing_freq;
-	double mag = (is_crawling) ? player_crawl_bobbing_mag : player_normal_bobbing_mag;
+	const double freq = (is_crawling) ? player_crawl_bobbing_freq : player_normal_bobbing_freq;
+	const double mag = (is_crawling) ? player_crawl_bobbing_mag : player_normal_bobbing_mag;
 	player_z += sin(player_data->movement_ticks * freq) * mag * vel_mag / max_speed;
 
 	rc_entity_set_transform(player, player_x, player_y, player_z, player_r);

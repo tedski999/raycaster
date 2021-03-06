@@ -7,6 +7,6 @@
 #define RC_ASSERT(assertion, message) if (!(assertion)) rc_error("Assertion failed: %s\n", message)
 #endif
 
-void rc_error(const char *const message, ...);
+void rc_error(const char *message, ...);
 
 #endif

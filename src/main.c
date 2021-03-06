@@ -1,5 +1,6 @@
 #include "window.h"
 #include "renderer.h"
+#include "texture.h"
 #include "entity.h"
 #include "player.h"
 #include "input.h"
@@ -27,7 +28,7 @@ void rc_barrel_update(struct raycaster_entity *barrel, struct raycaster_map *map
 	rc_entity_set_transform(barrel, x, y, z, r);
 }
 
-int main(int argc, char **argv) {
+int main(const int argc, const char **argv) {
 
 	// Window config
 	const int window_width = 640, window_height = 480;
@@ -126,7 +127,7 @@ int main(int argc, char **argv) {
 	while (is_running) {
 
 		// Find deltatime
-		double dt = rc_timer_reset(timer);
+		const double dt = rc_timer_reset(timer);
 		accumulated_time += dt;
 
 		// Update 60 times a second

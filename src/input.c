@@ -48,12 +48,12 @@ bool rc_input_is_button_down(enum input_button button) {
 	return buttons[button] == INPUT_STATE_PRESSED || buttons[button] == INPUT_STATE_HELD;
 }
 
-void rc_input_get_mouse_position(double *const x, double *const y) {
+void rc_input_get_mouse_position(double *x, double *y) {
 	*x = mouse_x;
 	*y = mouse_y;
 }
 
-void rc_input_get_mouse_velocity(double *const vx, double *const vy) {
+void rc_input_get_mouse_velocity(double *vx, double *vy) {
 	*vx = mouse_vx * mouse_sensitivity;
 	*vy = mouse_vy * mouse_sensitivity;
 }

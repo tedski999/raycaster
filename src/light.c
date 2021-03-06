@@ -21,7 +21,7 @@ void rc_light_set_position(struct raycaster_light *light, int x, int y) {
 	light->y = y;
 }
 
-void rc_light_get_position(const struct raycaster_light *const light, int *x, int *y) {
+void rc_light_get_position(const struct raycaster_light *light, int *x, int *y) {
 	*x = light->x;
 	*y = light->y;
 }
@@ -32,7 +32,7 @@ void rc_light_set_color(struct raycaster_light *light, unsigned char r, unsigned
 	light->b = b;
 }
 
-void rc_light_get_color(const struct raycaster_light *const light, unsigned char *r, unsigned char *g, unsigned char *b) {
+void rc_light_get_color(const struct raycaster_light *light, unsigned char *r, unsigned char *g, unsigned char *b) {
 	*r = light->r;
 	*g = light->g;
 	*b = light->b;
@@ -44,7 +44,7 @@ void rc_light_set_lighting(struct raycaster_light *light, int range, double fall
 	light->falloff = falloff;
 }
 
-void rc_light_get_lighting(const struct raycaster_light *const light, int *range, double *falloff) {
+void rc_light_get_lighting(const struct raycaster_light *light, int *range, double *falloff) {
 	*range = light->range;
 	*falloff = light->falloff;
 }

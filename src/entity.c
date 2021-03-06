@@ -4,13 +4,13 @@
 
 struct raycaster_entity {
 	double x, y, z, r;
-	struct raycaster_texture *texture;
+	const struct raycaster_texture *texture;
 	entity_update_func update_function;
 	entity_destroy_func destroy_function;
 	void *data_pointer;
 };
 
-struct raycaster_entity *rc_entity_create(double x, double y, double z, double r, struct raycaster_texture *texture, entity_init_func init_function, entity_update_func update_function, entity_destroy_func destroy_function) {
+struct raycaster_entity *rc_entity_create(double x, double y, double z, double r, const struct raycaster_texture *texture, entity_init_func init_function, entity_update_func update_function, entity_destroy_func destroy_function) {
 	struct raycaster_entity *entity = malloc(sizeof *entity);
 	RC_ASSERT(entity, "raycaster_entity memory allocation");
 	*entity = (struct raycaster_entity) { x, y, z, r, texture, update_function, destroy_function };
@@ -26,14 +26,15 @@ void rc_entity_set_transform(struct raycaster_entity *entity, double x, double y
 	entity->r = r;
 }
 
-void rc_entity_get_transform(struct raycaster_entity *entity, double *x, double *y, double *z, double *r) {
+void rc_entity_get_transform(const struct raycaster_entity *entity, double *x, double *y, double *z, double *r) {
 	*x = entity->x;
 	*y = entity->y;
 	*z = entity->z;
 	*r = entity->r;
 }
 
-struct raycaster_texture *rc_entity_get_texture(struct raycaster_entity *entity) {
+// TODO: entities should have an array of textures, each representing the entity from an angle
+const struct raycaster_texture *rc_entity_get_texture(const struct raycaster_entity *entity) {
 	return entity->texture;
 }
 
@@ -41,7 +42,7 @@ void rc_entity_set_data_pointer(struct raycaster_entity *entity, void *data_poin
 	entity->data_pointer = data_pointer;
 }
 
-void *rc_entity_get_data_pointer(struct raycaster_entity *entity) {
+void *rc_entity_get_data_pointer(const struct raycaster_entity *entity) {
 	return entity->data_pointer;
 }
 

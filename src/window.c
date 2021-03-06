@@ -22,7 +22,7 @@ static enum input_button rc_glfw_convert_button(int button);
 
 static int window_count = 0;
 
-struct raycaster_window *rc_window_create(const char *const title, int width, int height, bool is_resizable, bool is_cursor_disabled, bool is_vsync_enabled) {
+struct raycaster_window *rc_window_create(const char *title, int width, int height, bool is_resizable, bool is_cursor_disabled, bool is_vsync_enabled) {
 
 	// Start GLFW if this is the first window
 	if (window_count++ == 0) {
@@ -54,33 +54,33 @@ struct raycaster_window *rc_window_create(const char *const title, int width, in
 	return window;
 }
 
-void rc_window_set_vsync_enabled(struct raycaster_window *window, bool is_vsync_enabled) {
+void rc_window_set_vsync_enabled(const struct raycaster_window *window, bool is_vsync_enabled) {
 	GLFWwindow *previous_context = glfwGetCurrentContext();
 	glfwMakeContextCurrent(window->window);
 	glfwSwapInterval(is_vsync_enabled);
 	glfwMakeContextCurrent(previous_context);
 }
 
-void rc_window_set_renderer(struct raycaster_window *window, void *renderer) {
+void rc_window_set_renderer(const struct raycaster_window *window, const struct raycaster_renderer *renderer) {
 	int width, height;
-	glfwSetWindowUserPointer(window->window, renderer);
+	glfwSetWindowUserPointer(window->window, (void *)renderer);
 	glfwGetFramebufferSize(window->window, &width, &height);
 	rc_renderer_set_dimensions(renderer, width, height);
 }
 
-void rc_window_set_as_context(struct raycaster_window *window) {
+void rc_window_set_as_context(const struct raycaster_window *window) {
 	glfwMakeContextCurrent(window->window);
 }
 
-bool rc_window_should_close(struct raycaster_window *window) {
+bool rc_window_should_close(const struct raycaster_window *window) {
 	return glfwWindowShouldClose(window->window);
 }
 
-void rc_window_update(struct raycaster_window *window) {
+void rc_window_update(const struct raycaster_window *window) {
 	glfwPollEvents();
 }
 
-void rc_window_render(struct raycaster_window *window) {
+void rc_window_render(const struct raycaster_window *window) {
 	glfwSwapBuffers(window->window);
 }
 

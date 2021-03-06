@@ -11,7 +11,7 @@ struct raycaster_texture {
 	int width, height;
 };
 
-struct raycaster_texture *rc_texture_load(const char *const filename) {
+struct raycaster_texture *rc_texture_load(const char *filename) {
 	struct raycaster_texture *texture = malloc(sizeof *texture);
 	RC_ASSERT(texture, "raycaster_texture memory allocation");
 	texture->data = stbi_load(filename, &texture->width, &texture->height, NULL, 4);
@@ -19,13 +19,13 @@ struct raycaster_texture *rc_texture_load(const char *const filename) {
 	return texture;
 }
 
-void rc_texture_get_dimensions(struct raycaster_texture *texture, int *width, int *height) {
+void rc_texture_get_dimensions(const struct raycaster_texture *texture, int *width, int *height) {
 	*width = texture->width;
 	*height = texture->height;
 }
 
-void rc_texture_get_pixel(struct raycaster_texture *texture, int x, int y, unsigned char *r, unsigned char *g, unsigned char *b, unsigned char *a) {
-	int index = 4 * (y * texture->width + x);
+void rc_texture_get_pixel(const struct raycaster_texture *texture, int x, int y, unsigned char *r, unsigned char *g, unsigned char *b, unsigned char *a) {
+	const int index = 4 * (y * texture->width + x);
 	*r = texture->data[index + 0];
 	*g = texture->data[index + 1];
 	*b = texture->data[index + 2];

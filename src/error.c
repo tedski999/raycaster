@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-void rc_error(const char *const message, ...) {
+void rc_error(const char *message, ...) {
 	va_list args;
 	va_start(args, message);
 	vfprintf(stderr, message, args);

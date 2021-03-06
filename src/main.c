@@ -4,6 +4,7 @@
 #include "player.h"
 #include "input.h"
 #include "map.h"
+#include "light.h"
 #include "timer.h"
 #include <stdlib.h>
 #include <stdbool.h>
@@ -91,12 +92,15 @@ int main(int argc, char **argv) {
 		0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 6, 6, 6, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 	};
+	// TODO: entities should be able to create and modify their own lights
 	const int map_lights_count = 3;
-	const struct raycaster_light map_lights[3] = {
-		{ 1,  1, 0xff, 0x00, 0x00, 10, 5.0 },
-		{ 10, 7, 0x00, 0x60, 0xff, 10, 5.0 },
-		{ 17, 7, 0x40, 0x40, 0x40, 10, 5.0 },
+	struct raycaster_light *map_lights[3] = {
+		rc_light_create(1,  1, 0xff, 0x00, 0x00, 10, 5.0),
+		rc_light_create(10, 7, 0x00, 0x60, 0xff, 10, 5.0),
+		rc_light_create(17, 7, 0x40, 0x40, 0x40, 10, 5.0)
 	};
+	// TODO: a better entities data structure, optimized for calculating distance from the player
+	// entities should also be modifiable from anywhere? e.g a player should be able to make a projectile
 	const int entities_count = 8;
 	struct raycaster_entity *entities[8] = {
 		rc_entity_create(2.5,  2.5, 0.5, 0.0, NULL, rc_player_init, rc_player_update, rc_player_destroy),
@@ -114,7 +118,6 @@ int main(int argc, char **argv) {
 	struct raycaster_window *window = rc_window_create("raycaster", window_width, window_height, window_is_resizable, window_is_cursor_disabled, is_vsync_enabled);
 	struct raycaster_renderer *renderer = rc_renderer_create(window, window_aspect, resolution, fov, wall_textures);
 	struct raycaster_map *map = rc_map_create(map_width, map_height, map_floor, map_walls, map_ceiling);
-	rc_map_regenerate_lighting(map, 0x10, 0x10, 0x10, map_lights, map_lights_count);
 
 	// Main game loop
 	bool is_running = true;
@@ -134,6 +137,7 @@ int main(int argc, char **argv) {
 			rc_window_update(window);
 			for (int i = 0; i < entities_count; i++)
 				rc_entity_update(entities[i], map);
+			rc_map_generate_lighting(map, 0x10, 0x10, 0x10, map_lights, map_lights_count);
 			if (rc_window_should_close(window))
 				is_running = false;
 
@@ -143,7 +147,6 @@ int main(int argc, char **argv) {
 			if (rc_input_is_key_pressed(INPUT_KEY_MINUS))      if (resolution > 1) rc_renderer_set_resolution(renderer, resolution -= 2);
 			if (rc_input_is_key_pressed(INPUT_KEY_EQUALS))     rc_renderer_set_resolution(renderer, resolution += 2);
 			if (rc_input_is_key_pressed(INPUT_KEY_V))          rc_window_set_vsync_enabled(window, is_vsync_enabled = !is_vsync_enabled);
-			if (rc_input_is_key_pressed(INPUT_KEY_L))          rc_map_regenerate_lighting(map, 0x10, 0x10, 0x10, map_lights, map_lights_count);
 			if (rc_input_is_key_pressed(INPUT_KEY_ESCAPE))     is_running = false;
 
 			rc_input_update();
@@ -160,6 +163,8 @@ int main(int argc, char **argv) {
 	rc_map_destroy(map);
 	rc_renderer_destroy(renderer);
 	rc_window_destroy(window);
+	for (int i = 0; i < map_lights_count; i++)
+		rc_light_destroy(map_lights[i]);
 	for (int i = 0; i < entities_count; i++)
 		rc_entity_destroy(entities[i]);
 	for (int i = 0; i < wall_textures_count; i++)

@@ -1,5 +1,5 @@
-#ifndef RAYCASTER_PLATFORM_H
-#define RAYCASTER_PLATFORM_H
+#ifndef RC_PLATFORM_H
+#define RC_PLATFORM_H
 
 #if (defined linux || defined _linux || defined __linux__)
 #define RC_LINUX

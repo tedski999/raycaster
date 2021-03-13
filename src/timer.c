@@ -23,24 +23,24 @@ int clock_gettime(int unused, struct timespec *spec) {
 
 static double rc_timer_internal_difference(const struct timespec a, const struct timespec b);
 
-struct raycaster_timer {
+struct rc_timer {
 	struct timespec start_time;
 };
 
-struct raycaster_timer *rc_timer_create() {
-	struct raycaster_timer *timer = malloc(sizeof *timer);
-	RC_ASSERT(timer, "raycaster_timer memory allocation");
+struct rc_timer *rc_timer_create() {
+	struct rc_timer *timer = malloc(sizeof *timer);
+	RC_ASSERT(timer);
 	clock_gettime(CLOCK_MONOTONIC, &timer->start_time);
 	return timer;
 }
 
-double rc_timer_measure(const struct raycaster_timer *timer) {
+double rc_timer_measure(const struct rc_timer *timer) {
 	struct timespec cur_time;
 	clock_gettime(CLOCK_MONOTONIC, &cur_time);
 	return rc_timer_internal_difference(cur_time, timer->start_time);
 }
 
-double rc_timer_reset(struct raycaster_timer *timer) {
+double rc_timer_reset(struct rc_timer *timer) {
 	struct timespec cur_time;
 	clock_gettime(CLOCK_MONOTONIC, &cur_time);
 	const double time_elapsed = rc_timer_internal_difference(cur_time, timer->start_time);
@@ -48,7 +48,7 @@ double rc_timer_reset(struct raycaster_timer *timer) {
 	return time_elapsed;
 }
 
-void rc_timer_destroy(struct raycaster_timer *timer) {
+void rc_timer_destroy(struct rc_timer *timer) {
 	free(timer);
 }
 

@@ -12,10 +12,10 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-struct raycaster_renderer {
-	const struct raycaster_window *window;
+struct rc_renderer {
+	const struct rc_window *window;
 	double aspect, fov;
-	struct raycaster_texture **wall_textures;
+	struct rc_texture **wall_textures;
 	int num_columns, num_rows;
 	double *zbuffer;
 	unsigned vao, vbo, ibo;
@@ -23,19 +23,19 @@ struct raycaster_renderer {
 	int current_pbo;
 };
 
-static void rc_renderer_internal_raycast(const struct raycaster_map *map, double x, double y, double a, int *hit_x, int *hit_y, int *hit_side, double *hit_dst, double *hit_lat);
-static void rc_renderer_internal_initialize_opengl(struct raycaster_renderer *renderer);
-static void rc_renderer_internal_resize_opengl_buffers(struct raycaster_renderer *renderer);
+static void rc_renderer_internal_raycast(const struct rc_map *map, double x, double y, double a, int *hit_x, int *hit_y, int *hit_side, double *hit_dst, double *hit_lat);
+static void rc_renderer_internal_initialize_opengl(struct rc_renderer *renderer);
+static void rc_renderer_internal_resize_opengl_buffers(struct rc_renderer *renderer);
 static unsigned rc_renderer_internal_create_shader(const char *filepath, GLenum shader_type);
 static unsigned rc_renderer_internal_create_shader_program(const unsigned shaders[], int count);
 #ifdef RC_DEBUG
 static void rc_renderer_internal_opengl_message_callback(GLenum source, GLenum type, unsigned id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
 #endif
 
-struct raycaster_renderer *rc_renderer_create(const struct raycaster_window *window, double aspect, int resolution, double fov, struct raycaster_texture **wall_textures) {
-	struct raycaster_renderer *renderer = malloc(sizeof *renderer);
-	RC_ASSERT(renderer, "raycaster_renderer memory allocation");
-	*renderer = (struct raycaster_renderer) { window, aspect };
+struct rc_renderer *rc_renderer_create(const struct rc_window *window, double aspect, int resolution, double fov, struct rc_texture **wall_textures) {
+	struct rc_renderer *renderer = malloc(sizeof *renderer);
+	RC_ASSERT(renderer);
+	*renderer = (struct rc_renderer) { window, aspect };
 	rc_renderer_internal_initialize_opengl(renderer);
 	rc_renderer_set_fov(renderer, fov);
 	rc_renderer_set_wall_textures(renderer, wall_textures);
@@ -44,7 +44,7 @@ struct raycaster_renderer *rc_renderer_create(const struct raycaster_window *win
 	return renderer;
 }
 
-void rc_renderer_set_dimensions(const struct raycaster_renderer *renderer, int width, int height) {
+void rc_renderer_set_dimensions(const struct rc_renderer *renderer, int width, int height) {
 	double xratio = renderer->aspect * height / width;
 	double yratio = 1 / xratio;
 	if (xratio > 1) xratio = 1;
@@ -57,22 +57,22 @@ void rc_renderer_set_dimensions(const struct raycaster_renderer *renderer, int w
 	glViewport(x, y, w, h);
 }
 
-void rc_renderer_set_fov(struct raycaster_renderer *renderer, double fov) {
+void rc_renderer_set_fov(struct rc_renderer *renderer, double fov) {
 	renderer->fov = fov;
 }
 
-void rc_renderer_set_resolution(struct raycaster_renderer *renderer, int resolution) {
-	RC_ASSERT(resolution > 1, "Unreasonable resolution");
+void rc_renderer_set_resolution(struct rc_renderer *renderer, int resolution) {
+	RC_ASSERT(resolution > 1);
 	renderer->num_columns = renderer->aspect * resolution;
 	renderer->num_rows = resolution;
 	rc_renderer_internal_resize_opengl_buffers(renderer);
 }
 
-void rc_renderer_set_wall_textures(struct raycaster_renderer *renderer, struct raycaster_texture **wall_textures) {
+void rc_renderer_set_wall_textures(struct rc_renderer *renderer, struct rc_texture **wall_textures) {
 	renderer->wall_textures = wall_textures;
 }
 
-void rc_renderer_draw(struct raycaster_renderer *renderer, const struct raycaster_map *map, struct raycaster_entity **entities, int entities_count, const struct raycaster_entity *camera) {
+void rc_renderer_draw(struct rc_renderer *renderer, const struct rc_map *map, struct rc_entity **entities, int entities_count, const struct rc_entity *camera) {
 
 	// Render with the current PBO
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -127,7 +127,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, const struct raycaste
 			unsigned char color_r, color_g, color_b, color_a;
 			rc_map_get_lighting(map, tile_x + tile_offset_x, tile_y + tile_offset_y, &light_r, &light_g, &light_b);
 			const int tex_index = (is_floor) ? rc_map_get_floor(map, tile_x, tile_y) : rc_map_get_ceiling(map, tile_x, tile_y);
-			const struct raycaster_texture *tex = renderer->wall_textures[tex_index];
+			const struct rc_texture *tex = renderer->wall_textures[tex_index];
 			rc_texture_get_dimensions(tex, &tex_width, &tex_height);
 			const int tex_x = tex_width * tile_offset_x, tex_y = tex_height * tile_offset_y;
 			rc_texture_get_pixel(tex, tex_x, tex_y, &color_r, &color_g, &color_b, &color_a);
@@ -170,7 +170,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, const struct raycaste
 
 		// Find the starting point to sample from and the distance between each sample for the texture of the column to be drawn
 		int tex_width, tex_height;
-		const struct raycaster_texture *tex = renderer->wall_textures[hit_wall];
+		const struct rc_texture *tex = renderer->wall_textures[hit_wall];
 		rc_texture_get_dimensions(tex, &tex_width, &tex_height);
 		const double texels_per_row = tex_height / (column_length * renderer->num_rows + 1);
 		double tex_x = hit_lat * tex_width, tex_y = tex_height - texture_row * texels_per_row - 1;
@@ -205,7 +205,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, const struct raycaste
 	// Draw entities
 	// TODO: sort entities here
 	for (int i = 0; i < entities_count; i++) {
-		const struct raycaster_texture *tex = rc_entity_get_texture(entities[i]);
+		const struct rc_texture *tex = rc_entity_get_texture(entities[i]);
 
 		// Skip untextured entities
 		if (!tex)
@@ -288,7 +288,7 @@ void rc_renderer_draw(struct raycaster_renderer *renderer, const struct raycaste
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
-void rc_renderer_destroy(struct raycaster_renderer *renderer) {
+void rc_renderer_destroy(struct rc_renderer *renderer) {
 	glDeleteVertexArrays(1, &renderer->vao);
 	glDeleteBuffers(1, &renderer->vbo);
 	glDeleteBuffers(1, &renderer->ibo);
@@ -298,7 +298,7 @@ void rc_renderer_destroy(struct raycaster_renderer *renderer) {
 	free(renderer->zbuffer);
 }
 
-static void rc_renderer_internal_raycast(const struct raycaster_map *map, double x, double y, double a, int *hit_x, int *hit_y, int *hit_side, double *hit_dst, double *hit_lat) {
+static void rc_renderer_internal_raycast(const struct rc_map *map, double x, double y, double a, int *hit_x, int *hit_y, int *hit_side, double *hit_dst, double *hit_lat) {
 
 	// Starting point
 	*hit_x = x, *hit_y = y;
@@ -334,7 +334,7 @@ static void rc_renderer_internal_raycast(const struct raycaster_map *map, double
 	*hit_lat -= (int)*hit_lat;
 }
 
-static void rc_renderer_internal_initialize_opengl(struct raycaster_renderer *renderer) {
+static void rc_renderer_internal_initialize_opengl(struct rc_renderer *renderer) {
 
 	// Load OpenGL functions for the current context
 	gladLoadGL(glfwGetProcAddress);
@@ -396,13 +396,13 @@ static void rc_renderer_internal_initialize_opengl(struct raycaster_renderer *re
 	glDeleteShader(shaders[1]);
 }
 
-static void rc_renderer_internal_resize_opengl_buffers(struct raycaster_renderer *renderer) {
+static void rc_renderer_internal_resize_opengl_buffers(struct rc_renderer *renderer) {
 
 	// Allocate the first PBO - The second one is allocated during the next render
 	// Zero out the new PBO so we don't display garbage for the next frame
 	renderer->current_pbo = 0;
 	unsigned char *blank_frame = calloc(4 * renderer->num_columns * renderer->num_rows, sizeof *blank_frame);
-	RC_ASSERT(blank_frame, "raycaster_renderer blank_frame memory allocation");
+	RC_ASSERT(blank_frame);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, renderer->double_pbo[renderer->current_pbo]);
 	glBufferData(GL_PIXEL_UNPACK_BUFFER, 4 * sizeof (unsigned char) * renderer->num_columns * renderer->num_rows, blank_frame, GL_STREAM_DRAW);
 	free(blank_frame);
@@ -417,7 +417,7 @@ static void rc_renderer_internal_resize_opengl_buffers(struct raycaster_renderer
 
 	// Resize the zbuffer
 	double *new_zbuffer  = realloc(renderer->zbuffer, sizeof *new_zbuffer * renderer->num_columns);
-	RC_ASSERT(new_zbuffer, "zbuffer memory allocation");
+	RC_ASSERT(new_zbuffer);
 	renderer->zbuffer = new_zbuffer;
 }
 

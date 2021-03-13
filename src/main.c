@@ -15,7 +15,7 @@
 
 // Funky wandering barrel update function
 #include <math.h>
-void rc_barrel_update(struct raycaster_entity *barrel, struct raycaster_map *map) {
+void rc_barrel_update(struct rc_entity *barrel, struct rc_map *map) {
 	double x, y, z, r;
 	rc_entity_get_transform(barrel, &x, &y, &z, &r);
 
@@ -43,7 +43,7 @@ int main(const int argc, const char **argv) {
 
 	// Load textures
 	const int wall_textures_count = 8;
-	struct raycaster_texture *wall_textures[8] = {
+	struct rc_texture *wall_textures[8] = {
 		rc_texture_load("res/textures/wood.png"),
 		rc_texture_load("res/textures/greystone.png"),
 		rc_texture_load("res/textures/mossy.png"),
@@ -53,7 +53,7 @@ int main(const int argc, const char **argv) {
 		rc_texture_load("res/textures/redbrick.png"),
 		rc_texture_load("res/textures/eagle.png")
 	};
-	struct raycaster_texture *light_texture = rc_texture_load("res/textures/barrel.png");
+	struct rc_texture *light_texture = rc_texture_load("res/textures/barrel.png");
 
 	// Debug map
 	const int map_width = 20, map_height = 10;
@@ -95,7 +95,7 @@ int main(const int argc, const char **argv) {
 	};
 	// TODO: entities should be able to create and modify their own lights
 	const int map_lights_count = 3;
-	struct raycaster_light *map_lights[3] = {
+	struct rc_light *map_lights[3] = {
 		rc_light_create(1,  1, 0xff, 0x00, 0x00, 10, 5.0),
 		rc_light_create(10, 7, 0x00, 0x60, 0xff, 10, 5.0),
 		rc_light_create(17, 7, 0x40, 0x40, 0x40, 10, 5.0)
@@ -103,7 +103,7 @@ int main(const int argc, const char **argv) {
 	// TODO: a better entities data structure, optimized for calculating distance from the player
 	// entities should also be modifiable from anywhere? e.g a player should be able to make a projectile
 	const int entities_count = 8;
-	struct raycaster_entity *entities[8] = {
+	struct rc_entity *entities[8] = {
 		rc_entity_create(2.5,  2.5, 0.5, 0.0, NULL, rc_player_init, rc_player_update, rc_player_destroy),
 		rc_entity_create(10.5, 7.5, 0.5, 0.0, light_texture, NULL, rc_barrel_update, NULL),
 		rc_entity_create(2.5,  2.5, 0.5, 0.0, light_texture, NULL, rc_barrel_update, NULL),
@@ -113,17 +113,17 @@ int main(const int argc, const char **argv) {
 		rc_entity_create(2.5,  3.5, 0.5, 0.0, light_texture, NULL, rc_barrel_update, NULL),
 		rc_entity_create(12.5, 3.5, 0.5, 0.0, light_texture, NULL, rc_barrel_update, NULL)
 	};
-	struct raycaster_entity *player = entities[0];
+	struct rc_entity *player = entities[0];
 
 	// Create the window, renderer and map
-	struct raycaster_window *window = rc_window_create("raycaster", window_width, window_height, window_is_resizable, window_is_cursor_disabled, is_vsync_enabled);
-	struct raycaster_renderer *renderer = rc_renderer_create(window, window_aspect, resolution, fov, wall_textures);
-	struct raycaster_map *map = rc_map_create(map_width, map_height, map_floor, map_walls, map_ceiling);
+	struct rc_window *window = rc_window_create("raycaster", window_width, window_height, window_is_resizable, window_is_cursor_disabled, is_vsync_enabled);
+	struct rc_renderer *renderer = rc_renderer_create(window, window_aspect, resolution, fov, wall_textures);
+	struct rc_map *map = rc_map_create(map_width, map_height, map_floor, map_walls, map_ceiling);
 
 	// Main game loop
 	bool is_running = true;
 	double accumulated_time = 0;
-	struct raycaster_timer *timer = rc_timer_create();
+	struct rc_timer *timer = rc_timer_create();
 	while (is_running) {
 
 		// Find deltatime
@@ -143,12 +143,12 @@ int main(const int argc, const char **argv) {
 				is_running = false;
 
 			// Debug input - TODO: write these as text to the screen
-			if (rc_input_is_key_down(INPUT_KEY_COMMA))         rc_renderer_set_fov(renderer, fov -= 0.01);
-			if (rc_input_is_key_down(INPUT_KEY_PERIOD))        rc_renderer_set_fov(renderer, fov += 0.01);
-			if (rc_input_is_key_pressed(INPUT_KEY_MINUS))      if (resolution > 1) rc_renderer_set_resolution(renderer, resolution -= 2);
-			if (rc_input_is_key_pressed(INPUT_KEY_EQUALS))     rc_renderer_set_resolution(renderer, resolution += 2);
-			if (rc_input_is_key_pressed(INPUT_KEY_V))          rc_window_set_vsync_enabled(window, is_vsync_enabled = !is_vsync_enabled);
-			if (rc_input_is_key_pressed(INPUT_KEY_ESCAPE))     is_running = false;
+			if (rc_input_is_key_down(RC_INPUT_KEY_COMMA))     rc_renderer_set_fov(renderer, fov -= 0.01);
+			if (rc_input_is_key_down(RC_INPUT_KEY_PERIOD))    rc_renderer_set_fov(renderer, fov += 0.01);
+			if (rc_input_is_key_pressed(RC_INPUT_KEY_MINUS))  if (resolution > 1) rc_renderer_set_resolution(renderer, resolution -= 2);
+			if (rc_input_is_key_pressed(RC_INPUT_KEY_EQUALS)) rc_renderer_set_resolution(renderer, resolution += 2);
+			if (rc_input_is_key_pressed(RC_INPUT_KEY_V))      rc_window_set_vsync_enabled(window, is_vsync_enabled = !is_vsync_enabled);
+			if (rc_input_is_key_pressed(RC_INPUT_KEY_ESCAPE)) is_running = false;
 
 			rc_input_update();
 		}

@@ -5,22 +5,22 @@
 #include <stdbool.h>
 #include <math.h>
 
-struct raycaster_map {
+struct rc_map {
 	int width, height;
 	int *floor, *walls, *ceiling;
 	unsigned char *lighting;
 };
 
-struct raycaster_map *rc_map_create(int map_width, int map_height, const int *floor, const int *walls, const int *ceiling) {
-	struct raycaster_map *map = malloc(sizeof *map);
-	RC_ASSERT(map, "raycaster_map memory allocation");
-	*map = (struct raycaster_map) { map_width, map_height };
+struct rc_map *rc_map_create(int map_width, int map_height, const int *floor, const int *walls, const int *ceiling) {
+	struct rc_map *map = malloc(sizeof *map);
+	RC_ASSERT(map);
+	*map = (struct rc_map) { map_width, map_height };
 
 	map->floor = malloc(sizeof (int) * map_width * map_height);
 	map->walls = malloc(sizeof (int) * map_width * map_height);
 	map->ceiling = malloc(sizeof (int) * map_width * map_height);
 	map->lighting = calloc(3 * map_width * map_height, sizeof (unsigned char));
-	RC_ASSERT(map->floor && map->walls && map->ceiling && map->lighting, "raycaster_map->data memory allocation");
+	RC_ASSERT(map->floor && map->walls && map->ceiling && map->lighting);
 	for (int i = 0; i < map_width * map_height; i++) {
 		map->floor[i] = floor[i];
 		map->walls[i] = walls[i];
@@ -30,30 +30,30 @@ struct raycaster_map *rc_map_create(int map_width, int map_height, const int *fl
 	return map;
 }
 
-void rc_map_get_size(const struct raycaster_map *map, int *width, int *height) {
+void rc_map_get_size(const struct rc_map *map, int *width, int *height) {
 	*width = map->width;
 	*height = map->height;
 }
 
-int rc_map_get_floor(const struct raycaster_map *map, int x, int y) {
+int rc_map_get_floor(const struct rc_map *map, int x, int y) {
 	if (x < 0 || x >= map->width || y < 0 || y >= map->height)
 		return 0;
 	return map->floor[y * map->width + x];
 }
 
-int rc_map_get_wall(const struct raycaster_map *map, int x, int y) {
+int rc_map_get_wall(const struct rc_map *map, int x, int y) {
 	if (x < 0 || x >= map->width || y < 0 || y >= map->height)
 		return 0;
 	return map->walls[y * map->width + x];
 }
 
-int rc_map_get_ceiling(const struct raycaster_map *map, int x, int y) {
+int rc_map_get_ceiling(const struct rc_map *map, int x, int y) {
 	if (x < 0 || x >= map->width || y < 0 || y >= map->height)
 		return 0;
 	return map->ceiling[y * map->width + x];
 }
 
-void rc_map_generate_lighting(const struct raycaster_map *map, unsigned char ambient_r, unsigned char ambient_g, unsigned char ambient_b, struct raycaster_light **lights, int lights_count) {
+void rc_map_generate_lighting(const struct rc_map *map, unsigned char ambient_r, unsigned char ambient_g, unsigned char ambient_b, struct rc_light **lights, int lights_count) {
 
 	// Ambient lighting
 	for (int i = 0; i < map->width * map->height; i++) {
@@ -82,14 +82,14 @@ void rc_map_generate_lighting(const struct raycaster_map *map, unsigned char amb
 
 		// A boolean array for marking visited tiles
 		bool *is_tile_visited = calloc(map->width * map->height, sizeof *is_tile_visited);
-		RC_ASSERT(is_tile_visited, "rc_map_regenerate_lighting is_tile_visited memory allocation");
+		RC_ASSERT(is_tile_visited);
 		is_tile_visited[light_y * map->width + light_x] = true;
 
 		// Queue data structure for breadth first search
 		const int tile_queue_capacity = 4 * light_range;
 		int tile_queue_front_index = 0, tile_queue_back_index = 0;
 		int *tile_queue = malloc(sizeof *tile_queue * tile_queue_capacity * 2);
-		RC_ASSERT(tile_queue, "rc_map_regenerate_lighting tile_queue memory allocation");
+		RC_ASSERT(tile_queue);
 		tile_queue[0] = light_x;
 		tile_queue[1] = light_y;
 
@@ -142,14 +142,14 @@ void rc_map_generate_lighting(const struct raycaster_map *map, unsigned char amb
 	}
 }
 
-void rc_map_get_lighting(const struct raycaster_map *map, int x, int y, unsigned char *r, unsigned char *g, unsigned char *b) {
+void rc_map_get_lighting(const struct rc_map *map, int x, int y, unsigned char *r, unsigned char *g, unsigned char *b) {
 	const int lighting_index = 3 * (y * map->width + x);
 	*r = map->lighting[lighting_index + 0];
 	*g = map->lighting[lighting_index + 1];
 	*b = map->lighting[lighting_index + 2];
 }
 
-void rc_map_destroy(struct raycaster_map *map) {
+void rc_map_destroy(struct rc_map *map) {
 	free(map->floor);
 	free(map->walls);
 	free(map->ceiling);

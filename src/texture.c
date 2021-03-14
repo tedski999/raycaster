@@ -1,4 +1,5 @@
 #include "texture.h"
+#include "logging.h"
 #include "error.h"
 #include <stdlib.h>
 #define STB_IMAGE_IMPLEMENTATION
@@ -12,6 +13,7 @@ struct rc_texture {
 };
 
 struct rc_texture *rc_texture_load(const char *filename) {
+	rc_log(RC_LOG_VERBOSE, "Loading texture '%s'...", filename);
 	struct rc_texture *texture = malloc(sizeof *texture);
 	RC_ASSERT(texture);
 	texture->data = stbi_load(filename, &texture->width, &texture->height, NULL, 4);
@@ -33,6 +35,7 @@ void rc_texture_get_pixel(const struct rc_texture *texture, int x, int y, unsign
 }
 
 void rc_texture_unload(struct rc_texture *texture) {
+	rc_log(RC_LOG_VERBOSE, "Unloading texture...");
 	stbi_image_free(texture->data);
 	free(texture);
 }

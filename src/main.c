@@ -1,3 +1,5 @@
+#include "platform.h"
+#include "logging.h"
 #include "window.h"
 #include "renderer.h"
 #include "texture.h"
@@ -9,9 +11,6 @@
 #include "timer.h"
 #include <stdlib.h>
 #include <stdbool.h>
-
-#define PI 3.14159265358979323846
-#define DEG2RAD(degree) (degree * PI / 180)
 
 // Funky wandering barrel update function
 #include <math.h>
@@ -29,6 +28,7 @@ void rc_barrel_update(struct rc_entity *barrel, struct rc_map *map) {
 }
 
 int main(const int argc, const char **argv) {
+	rc_log_init();
 
 	// Window config
 	const int window_width = 640, window_height = 480;
@@ -42,6 +42,7 @@ int main(const int argc, const char **argv) {
 	bool is_vsync_enabled = true; // if glfw will wait for vsync
 
 	// Load textures
+	rc_log(RC_LOG_INFO, "Loading textures...");
 	const int wall_textures_count = 8;
 	struct rc_texture *wall_textures[8] = {
 		rc_texture_load("res/textures/wood.png"),
@@ -56,6 +57,7 @@ int main(const int argc, const char **argv) {
 	struct rc_texture *light_texture = rc_texture_load("res/textures/barrel.png");
 
 	// Debug map
+	rc_log(RC_LOG_INFO, "Initializing game world...");
 	const int map_width = 20, map_height = 10;
 	const int map_floor[20*10] = {
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -124,6 +126,7 @@ int main(const int argc, const char **argv) {
 	bool is_running = true;
 	double accumulated_time = 0;
 	struct rc_timer *timer = rc_timer_create();
+	rc_log(RC_LOG_NOTEWORTHY, "Entering main game loop...");
 	while (is_running) {
 
 		// Find deltatime
@@ -160,6 +163,7 @@ int main(const int argc, const char **argv) {
 	}
 
 	// Cleanup
+	rc_log(RC_LOG_NOTEWORTHY, "Cleaning up...");
 	rc_timer_destroy(timer);
 	rc_map_destroy(map);
 	rc_renderer_destroy(renderer);
@@ -171,4 +175,5 @@ int main(const int argc, const char **argv) {
 	for (int i = 0; i < wall_textures_count; i++)
 		rc_texture_unload(wall_textures[i]);
 	rc_texture_unload(light_texture);
+	rc_log_cleanup();
 }

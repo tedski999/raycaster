@@ -1,4 +1,5 @@
 #include "player.h"
+#include "logging.h"
 #include "error.h"
 #include "input.h"
 #include "entity.h"
@@ -29,6 +30,7 @@ struct rc_player_data {
 };
 
 void rc_player_init(struct rc_entity *player) {
+	rc_log(RC_LOG_VERBOSE, "Initializing new player...");
 	struct rc_player_data *player_data = calloc(1, sizeof *player_data);
 	RC_ASSERT(player_data);
 	rc_entity_set_data_pointer(player, player_data);
@@ -81,5 +83,6 @@ void rc_player_update(struct rc_entity *player, struct rc_map *map) {
 }
 
 void rc_player_destroy(struct rc_entity *player) {
+	rc_log(RC_LOG_VERBOSE, "Destroying player...");
 	free(rc_entity_get_data_pointer(player));
 }

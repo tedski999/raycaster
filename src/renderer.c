@@ -1,11 +1,12 @@
 #include "renderer.h"
+#include "platform.h"
+#include "logging.h"
 #include "error.h"
 #include "window.h"
 #include "map.h"
 #include "entity.h"
 #include "texture.h"
 #include <stdlib.h>
-#include <stdio.h>
 #include <math.h>
 #define GLAD_GL_IMPLEMENTATION
 #include <glad/gl.h>
@@ -33,6 +34,7 @@ static void rc_renderer_internal_opengl_message_callback(GLenum source, GLenum t
 #endif
 
 struct rc_renderer *rc_renderer_create(const struct rc_window *window, double aspect, int resolution, double fov, struct rc_texture **wall_textures) {
+	rc_log(RC_LOG_INFO, "Creating new renderer...");
 	struct rc_renderer *renderer = malloc(sizeof *renderer);
 	RC_ASSERT(renderer);
 	*renderer = (struct rc_renderer) { window, aspect };
@@ -45,6 +47,7 @@ struct rc_renderer *rc_renderer_create(const struct rc_window *window, double as
 }
 
 void rc_renderer_set_dimensions(const struct rc_renderer *renderer, int width, int height) {
+	rc_log(RC_LOG_INFO, "Setting renderer dimensions to %ix%i...", width, height);
 	double xratio = renderer->aspect * height / width;
 	double yratio = 1 / xratio;
 	if (xratio > 1) xratio = 1;
@@ -55,13 +58,16 @@ void rc_renderer_set_dimensions(const struct rc_renderer *renderer, int width, i
 	const double w = width * xratio;
 	const double h = height * yratio;
 	glViewport(x, y, w, h);
+	rc_log(RC_LOG_INFO, "Renderer viewport dimensions set to %.2fx%.2f+%.2f+%.2f...", w, h, x, y);
 }
 
 void rc_renderer_set_fov(struct rc_renderer *renderer, double fov) {
+	rc_log(RC_LOG_INFO, "Setting renderer FOV to %.2f degress...", RAD2DEG(fov));
 	renderer->fov = fov;
 }
 
 void rc_renderer_set_resolution(struct rc_renderer *renderer, int resolution) {
+	rc_log(RC_LOG_INFO, "Setting renderer quality to %i...", resolution);
 	RC_ASSERT(resolution > 1);
 	renderer->num_columns = renderer->aspect * resolution;
 	renderer->num_rows = resolution;
@@ -69,6 +75,7 @@ void rc_renderer_set_resolution(struct rc_renderer *renderer, int resolution) {
 }
 
 void rc_renderer_set_wall_textures(struct rc_renderer *renderer, struct rc_texture **wall_textures) {
+	rc_log(RC_LOG_INFO, "Setting renderer wall textures %i...");
 	renderer->wall_textures = wall_textures;
 }
 
@@ -289,6 +296,7 @@ void rc_renderer_draw(struct rc_renderer *renderer, const struct rc_map *map, st
 }
 
 void rc_renderer_destroy(struct rc_renderer *renderer) {
+	rc_log(RC_LOG_VERBOSE, "Destroying renderer...");
 	glDeleteVertexArrays(1, &renderer->vao);
 	glDeleteBuffers(1, &renderer->vbo);
 	glDeleteBuffers(1, &renderer->ibo);
@@ -335,19 +343,19 @@ static void rc_renderer_internal_raycast(const struct rc_map *map, double x, dou
 }
 
 static void rc_renderer_internal_initialize_opengl(struct rc_renderer *renderer) {
+	rc_log(RC_LOG_INFO, "Initializing OpenGL...");
 
 	// Load OpenGL functions for the current context
 	gladLoadGL(glfwGetProcAddress);
-	if (!GLAD_GL_VERSION_3_2) {
-		fprintf(stderr, "Your system doesn't support OpenGL >= 3.2!\n");
-		exit(1);
-	}
+	if (!GLAD_GL_VERSION_3_2)
+		rc_error("Your system doesn't support OpenGL >= 3.2!\n");
 #ifdef RC_DEBUG
+	rc_log(RC_LOG_VERBOSE, "Enabling OpenGL debug output...");
 	glEnable(GL_DEBUG_OUTPUT);
 	glDebugMessageCallback(rc_renderer_internal_opengl_message_callback, 0);
 #endif
-	printf("%s - %s\n", glGetString(GL_VENDOR), glGetString(GL_RENDERER));
-	printf("OpenGL %s, GLSL %s\n", glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
+	rc_log(RC_LOG_VERBOSE, "%s", glGetString(GL_VERSION));
+	rc_log(RC_LOG_VERBOSE, "%s - %s", glGetString(GL_VENDOR), glGetString(GL_RENDERER));
 
 	// A quad which fills the viewport - Will be the canvas for our software rendered texture
 	const unsigned quad_indices[] = { 0, 1, 3, 1, 2, 3 };
@@ -359,6 +367,7 @@ static void rc_renderer_internal_initialize_opengl(struct rc_renderer *renderer)
 	};
 
 	// Generate the OpenGL buffers for a quad
+	rc_log(RC_LOG_VERBOSE, "Generating viewport quad...");
 	// Create the quad VAO
 	glGenVertexArrays(1, &renderer->vao);
 	glBindVertexArray(renderer->vao);
@@ -380,6 +389,7 @@ static void rc_renderer_internal_initialize_opengl(struct rc_renderer *renderer)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	// Generate the OpenGL buffers for mapping a texture onto the quad with double-buffered PBOs
+	rc_log(RC_LOG_VERBOSE, "Generating viewport texture...");
 	glGenBuffers(2, renderer->double_pbo);
 	glGenTextures(1, &renderer->tex);
 	glBindTexture(GL_TEXTURE_2D, renderer->tex);
@@ -388,6 +398,7 @@ static void rc_renderer_internal_initialize_opengl(struct rc_renderer *renderer)
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// Create the shader to be used
+	rc_log(RC_LOG_INFO, "Loading shaders...");
 	unsigned shaders[2];
 	shaders[0] = rc_renderer_internal_create_shader("res/shaders/base.vert", GL_VERTEX_SHADER);
 	shaders[1] = rc_renderer_internal_create_shader("res/shaders/base.frag", GL_FRAGMENT_SHADER);
@@ -397,6 +408,8 @@ static void rc_renderer_internal_initialize_opengl(struct rc_renderer *renderer)
 }
 
 static void rc_renderer_internal_resize_opengl_buffers(struct rc_renderer *renderer) {
+
+	rc_log(RC_LOG_VERBOSE, "Allocating video memory for OpenGL buffers...");
 
 	// Allocate the first PBO - The second one is allocated during the next render
 	// Zero out the new PBO so we don't display garbage for the next frame
@@ -422,25 +435,22 @@ static void rc_renderer_internal_resize_opengl_buffers(struct rc_renderer *rende
 }
 
 static unsigned rc_renderer_internal_create_shader(const char *filepath, GLenum shader_type) {
+	rc_log(RC_LOG_VERBOSE, "Creating GLSL shader from '%s'...", filepath);
+
 	FILE *file = fopen(filepath, "r");
-	if (!file) {
-		fprintf(stderr, "Could not read from '%s'!\n", filepath);
-		exit(1);
-	}
+	if (!file)
+		rc_error("Could not read shader source from '%s'!", filepath);
 
 	fseek(file , 0, SEEK_END);
 	const int file_size = ftell(file);
 	rewind(file);
 
 	char *file_buffer = malloc(file_size + 1);
+	RC_ASSERT(file_buffer);
 	if (!file_buffer)
 		exit(-1);
-	if (fread(file_buffer, file_size, 1, file) != 1) {
-		fclose(file);
-		free(file_buffer);
-		fprintf(stderr, "Error while reading '%s'!\n", filepath);
-		exit(1);
-	}
+	if (fread(file_buffer, file_size, 1, file) != 1)
+		rc_error("Error while reading shader source from '%s'!", filepath);
 	fclose(file);
 	file_buffer[file_size] = '\0';
 
@@ -455,14 +465,14 @@ static unsigned rc_renderer_internal_create_shader(const char *filepath, GLenum 
 	if (!success) {
 		char desc[512];
 		glGetShaderInfoLog(shader, 512, NULL, desc);
-		fprintf(stderr, "Error while compiling '%s':\n%s\n", filepath, desc);
-		exit(1);
+		rc_error("An error occurred while compiling shader source from '%s':\n%s", filepath, desc);
 	}
 
 	return shader;
 }
 
 static unsigned rc_renderer_internal_create_shader_program(const unsigned shaders[], int count) {
+	rc_log(RC_LOG_VERBOSE, "Creating GLSL shader program...");
 	const unsigned program = glCreateProgram();
 	for (int i = 0; i < count; i++)
 		glAttachShader(program, shaders[i]);
@@ -495,6 +505,6 @@ static void rc_renderer_internal_opengl_message_callback(GLenum source, GLenum t
 			break;
 	}
 
-	printf("OpenGL (%s): %s\n", type_str, message);
+	rc_log(RC_LOG_VERBOSE, "OpenGL (%s): %s\n", type_str, message);
 }
 #endif

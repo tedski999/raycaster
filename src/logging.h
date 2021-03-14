@@ -4,7 +4,9 @@
 #include <stdarg.h>
 
 enum rc_log_urgency {
+	RC_LOG_VERBOSE = 0,
 	RC_LOG_INFO,
+	RC_LOG_NOTEWORTHY,
 	RC_LOG_WARN,
 	RC_LOG_ERROR,
 	rc_log_urgency_count

@@ -1,4 +1,5 @@
 #include "entity.h"
+#include "logging.h"
 #include "error.h"
 #include <stdlib.h>
 
@@ -11,6 +12,7 @@ struct rc_entity {
 };
 
 struct rc_entity *rc_entity_create(double x, double y, double z, double r, const struct rc_texture *texture, entity_init_func init_function, entity_update_func update_function, entity_destroy_func destroy_function) {
+	rc_log(RC_LOG_VERBOSE, "Creating new entity...");
 	struct rc_entity *entity = malloc(sizeof *entity);
 	RC_ASSERT(entity);
 	*entity = (struct rc_entity) { x, y, z, r, texture, update_function, destroy_function };
@@ -52,6 +54,7 @@ void rc_entity_update(struct rc_entity *entity, struct rc_map *map) {
 }
 
 void rc_entity_destroy(struct rc_entity *entity) {
+	rc_log(RC_LOG_VERBOSE, "Destroying entity...");
 	if (entity->destroy_function)
 		entity->destroy_function(entity);
 	free(entity);

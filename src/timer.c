@@ -1,4 +1,5 @@
 #include "timer.h"
+#include "logging.h"
 #include "error.h"
 #include "platform.h"
 #include <stdlib.h>
@@ -28,6 +29,7 @@ struct rc_timer {
 };
 
 struct rc_timer *rc_timer_create() {
+	rc_log(RC_LOG_VERBOSE, "Creating new timer...");
 	struct rc_timer *timer = malloc(sizeof *timer);
 	RC_ASSERT(timer);
 	clock_gettime(CLOCK_MONOTONIC, &timer->start_time);
@@ -49,6 +51,7 @@ double rc_timer_reset(struct rc_timer *timer) {
 }
 
 void rc_timer_destroy(struct rc_timer *timer) {
+	rc_log(RC_LOG_VERBOSE, "Destroying timer...");
 	free(timer);
 }
 

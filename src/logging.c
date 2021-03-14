@@ -3,14 +3,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdbool.h>
 
+static bool is_initiated = false;
 static struct rc_timer *init_timer;
 static const char *RC_LOG_FORMAT = "%.4f [%s] %s\n";
-static const char *RC_LOG_URGENCY_LABELS[rc_log_urgency_count] = { "INFO", "WARN", "ERRR" };
+static const char *RC_LOG_URGENCY_LABELS[rc_log_urgency_count] = { "DBUG", "INFO", "NOTE", "WARN", "ERRR" };
 
 void rc_log_init(void) {
 	init_timer = rc_timer_create();
-	rc_log(RC_LOG_INFO, "Logging system initialized.");
+	is_initiated = true;
+	rc_log(RC_LOG_NOTEWORTHY, "Logging system initialized.");
 }
 
 void rc_log(enum rc_log_urgency urgency, const char *message, ...) {
@@ -22,10 +25,18 @@ void rc_log(enum rc_log_urgency urgency, const char *message, ...) {
 
 void rc_log_variadic(enum rc_log_urgency urgency, const char *message, va_list args) {
 
+#ifndef RC_DEBUG
+	if (urgency == RC_LOG_VERBOSE)
+		return;
+#endif
+
+	if (!is_initiated)
+		return;
+
 	// Determine size of formatted message
 	va_list args_copy;
-	va_copy(args, args_copy);
-	int formatted_message_length = vsnprintf(NULL, 0, message, args) + 1;
+	va_copy(args_copy, args);
+	int formatted_message_length = vsnprintf(NULL, 0, message, args_copy) + 1;
 	va_end(args_copy);
 
 	// Allocate space and format message
@@ -38,11 +49,15 @@ void rc_log_variadic(enum rc_log_urgency urgency, const char *message, va_list a
 
 	// Print log in RC_LOG_FORMAT format
 	double time_since_init = rc_timer_measure(init_timer);
-	printf(RC_LOG_FORMAT, time_since_init, RC_LOG_URGENCY_LABELS[urgency], formatted_message);
+	const char *urgency_label = RC_LOG_URGENCY_LABELS[urgency];
+	printf(RC_LOG_FORMAT, time_since_init, urgency_label, formatted_message);
 	free(formatted_message);
 }
 
 void rc_log_cleanup(void) {
-	rc_log(RC_LOG_INFO, "Cleaning up logging system...");
-	rc_timer_destroy(init_timer);
+	if (is_initiated) {
+		rc_log(RC_LOG_INFO, "Cleaning up logging system...");
+		rc_timer_destroy(init_timer);
+		is_initiated = false;
+	}
 }

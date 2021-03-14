@@ -1,4 +1,5 @@
 #include "light.h"
+#include "logging.h"
 #include "error.h"
 #include <stdlib.h>
 
@@ -10,6 +11,7 @@ struct rc_light {
 };
 
 struct rc_light *rc_light_create(int x, int y, unsigned char r, unsigned char g, unsigned char b, int range, double falloff) {
+	rc_log(RC_LOG_VERBOSE, "Creating new light...");
 	struct rc_light *light = malloc(sizeof *light);
 	RC_ASSERT(light);
 	*light = (struct rc_light) { x, y, r, g, b, range, falloff };
@@ -36,7 +38,6 @@ void rc_light_get_color(const struct rc_light *light, unsigned char *r, unsigned
 	*r = light->r;
 	*g = light->g;
 	*b = light->b;
-
 }
 
 void rc_light_set_lighting(struct rc_light *light, int range, double falloff) {
@@ -50,5 +51,6 @@ void rc_light_get_lighting(const struct rc_light *light, int *range, double *fal
 }
 
 void rc_light_destroy(struct rc_light *light) {
+	rc_log(RC_LOG_VERBOSE, "Destroying light...");
 	free(light);
 }

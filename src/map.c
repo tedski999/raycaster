@@ -1,4 +1,5 @@
 #include "map.h"
+#include "logging.h"
 #include "error.h"
 #include "light.h"
 #include <stdlib.h>
@@ -12,6 +13,7 @@ struct rc_map {
 };
 
 struct rc_map *rc_map_create(int map_width, int map_height, const int *floor, const int *walls, const int *ceiling) {
+	rc_log(RC_LOG_VERBOSE, "Creating new map...");
 	struct rc_map *map = malloc(sizeof *map);
 	RC_ASSERT(map);
 	*map = (struct rc_map) { map_width, map_height };
@@ -36,20 +38,26 @@ void rc_map_get_size(const struct rc_map *map, int *width, int *height) {
 }
 
 int rc_map_get_floor(const struct rc_map *map, int x, int y) {
-	if (x < 0 || x >= map->width || y < 0 || y >= map->height)
+	if (x < 0 || x >= map->width || y < 0 || y >= map->height) {
+		rc_log(RC_LOG_WARN, "Attempted to get floor ID for non-existant tile %i,%i!", x, y);
 		return 0;
+	}
 	return map->floor[y * map->width + x];
 }
 
 int rc_map_get_wall(const struct rc_map *map, int x, int y) {
-	if (x < 0 || x >= map->width || y < 0 || y >= map->height)
+	if (x < 0 || x >= map->width || y < 0 || y >= map->height) {
+		rc_log(RC_LOG_WARN, "Attempted to get wall ID for non-existant tile %i,%i!", x, y);
 		return 0;
+	}
 	return map->walls[y * map->width + x];
 }
 
 int rc_map_get_ceiling(const struct rc_map *map, int x, int y) {
-	if (x < 0 || x >= map->width || y < 0 || y >= map->height)
+	if (x < 0 || x >= map->width || y < 0 || y >= map->height) {
+		rc_log(RC_LOG_WARN, "Attempted to get ceiling ID for non-existant tile %i,%i!", x, y);
 		return 0;
+	}
 	return map->ceiling[y * map->width + x];
 }
 
@@ -143,6 +151,10 @@ void rc_map_generate_lighting(const struct rc_map *map, unsigned char ambient_r,
 }
 
 void rc_map_get_lighting(const struct rc_map *map, int x, int y, unsigned char *r, unsigned char *g, unsigned char *b) {
+	if (x < 0 || x >= map->width || y < 0 || y >= map->height) {
+		rc_log(RC_LOG_WARN, "Attempted to get lighting for non-existant tile %i,%i!", x, y);
+		*r = *g = *b = 0x00;
+	}
 	const int lighting_index = 3 * (y * map->width + x);
 	*r = map->lighting[lighting_index + 0];
 	*g = map->lighting[lighting_index + 1];
@@ -150,6 +162,7 @@ void rc_map_get_lighting(const struct rc_map *map, int x, int y, unsigned char *
 }
 
 void rc_map_destroy(struct rc_map *map) {
+	rc_log(RC_LOG_VERBOSE, "Destroying map...");
 	free(map->floor);
 	free(map->walls);
 	free(map->ceiling);

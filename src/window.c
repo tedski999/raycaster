@@ -1,10 +1,10 @@
 #include "window.h"
+#include "logging.h"
+#include "error.h"
 #include "renderer.h"
 #include "input.h"
-#include "error.h"
 #include "platform.h"
 #include <stdlib.h>
-#include <stdio.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
@@ -26,9 +26,12 @@ struct rc_window *rc_window_create(const char *title, int width, int height, boo
 
 	// Start GLFW if this is the first window
 	if (window_count++ == 0) {
+		rc_log(RC_LOG_NOTEWORTHY, "Initializing GLFW...");
 		glfwSetErrorCallback(rc_glfw_error_callback);
 		glfwInit();
 	}
+
+	rc_log(RC_LOG_INFO, "Opening new window...");
 	
 	// Open window
 	glfwWindowHint(GLFW_RESIZABLE, is_resizable);
@@ -55,6 +58,7 @@ struct rc_window *rc_window_create(const char *title, int width, int height, boo
 }
 
 void rc_window_set_vsync_enabled(const struct rc_window *window, bool is_vsync_enabled) {
+	rc_log(RC_LOG_INFO, (is_vsync_enabled) ? "Enabling v-sync..." : "Disabling v-sync...");
 	GLFWwindow *previous_context = glfwGetCurrentContext();
 	glfwMakeContextCurrent(window->window);
 	glfwSwapInterval(is_vsync_enabled);
@@ -62,6 +66,7 @@ void rc_window_set_vsync_enabled(const struct rc_window *window, bool is_vsync_e
 }
 
 void rc_window_set_renderer(const struct rc_window *window, const struct rc_renderer *renderer) {
+	rc_log(RC_LOG_INFO, "Updating window renderer...");
 	int width, height;
 	glfwSetWindowUserPointer(window->window, (void *)renderer);
 	glfwGetFramebufferSize(window->window, &width, &height);
@@ -85,12 +90,15 @@ void rc_window_render(const struct rc_window *window) {
 }
 
 void rc_window_destroy(struct rc_window *window) {
+	rc_log(RC_LOG_INFO, "Closing window...");
 	glfwDestroyWindow(window->window);
 	free(window);
 
 	// Terminate GLFW if this is the last window
-	if (--window_count == 0)
+	if (--window_count == 0) {
+		rc_log(RC_LOG_NOTEWORTHY, "Terminating GLFW...");
 		glfwTerminate();
+	}
 }
 
 static void rc_glfw_keyboard_input_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
@@ -106,14 +114,14 @@ static void rc_glfw_mouse_movement_callback(GLFWwindow *window, double xpos, dou
 }
 
 static void rc_glfw_framebuffer_resize_callback(GLFWwindow *window, int width, int height) {
+	rc_log(RC_LOG_INFO, "GLFW framebuffer resize...");
 	struct rc_renderer *renderer = glfwGetWindowUserPointer(window);
 	if (renderer)
 		rc_renderer_set_dimensions(renderer, width, height);
 }
 
 static void rc_glfw_error_callback(int code, const char *desc) {
-	fprintf(stderr, "GLFW (ERR %#010x): %s\n", code, desc);
-	exit(1);
+	rc_error("GLFW (ERR %#010x): %s\n", code, desc);
 }
 
 static enum rc_input_key rc_glfw_convert_keycode(int keycode) {
@@ -157,12 +165,14 @@ static enum rc_input_key rc_glfw_convert_keycode(int keycode) {
 		case GLFW_KEY_LEFT:          return RC_INPUT_KEY_LEFT;
 		case GLFW_KEY_DOWN:          return RC_INPUT_KEY_DOWN;
 		case GLFW_KEY_UP:            return RC_INPUT_KEY_UP;
-		default: return 0;
+			rc_log(RC_LOG_WARN, "Unrecognized key input!");
+			default: return 0;
 	}
 }
 
 static enum rc_input_button rc_glfw_convert_button(int button) {
 	if (button >= GLFW_MOUSE_BUTTON_1 && button <= GLFW_MOUSE_BUTTON_8)
 		return RC_INPUT_BUTTON_1 + (button - GLFW_MOUSE_BUTTON_1);
+	rc_log(RC_LOG_WARN, "Unrecognized mouse button input!");
 	return 0;
 }

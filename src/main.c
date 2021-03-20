@@ -148,8 +148,8 @@ int main(const int argc, const char **argv) {
 			// Debug input - TODO: write these as text to the screen
 			if (rc_input_is_key_down(RC_INPUT_KEY_COMMA))     rc_renderer_set_fov(renderer, fov -= 0.01);
 			if (rc_input_is_key_down(RC_INPUT_KEY_PERIOD))    rc_renderer_set_fov(renderer, fov += 0.01);
-			if (rc_input_is_key_pressed(RC_INPUT_KEY_MINUS))  if (resolution > 1) rc_renderer_set_resolution(renderer, resolution -= 2);
-			if (rc_input_is_key_pressed(RC_INPUT_KEY_EQUALS)) rc_renderer_set_resolution(renderer, resolution += 2);
+			if (rc_input_is_key_pressed(RC_INPUT_KEY_MINUS))  if (resolution > 1) rc_renderer_set_resolution(renderer, --resolution);
+			if (rc_input_is_key_pressed(RC_INPUT_KEY_EQUALS)) rc_renderer_set_resolution(renderer, ++resolution);
 			if (rc_input_is_key_pressed(RC_INPUT_KEY_V))      rc_window_set_vsync_enabled(window, is_vsync_enabled = !is_vsync_enabled);
 			if (rc_input_is_key_pressed(RC_INPUT_KEY_ESCAPE)) is_running = false;
 

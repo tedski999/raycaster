@@ -58,7 +58,7 @@ void rc_renderer_set_dimensions(const struct rc_renderer *renderer, int width, i
 	const double w = width * xratio;
 	const double h = height * yratio;
 	glViewport(x, y, w, h);
-	rc_log(RC_LOG_INFO, "Renderer viewport dimensions set to %.2fx%.2f+%.2f+%.2f...", w, h, x, y);
+	rc_log(RC_LOG_VERBOSE, "Renderer viewport dimensions set to %.2fx%.2f+%.2f+%.2f...", w, h, x, y);
 }
 
 void rc_renderer_set_fov(struct rc_renderer *renderer, double fov) {
@@ -68,14 +68,14 @@ void rc_renderer_set_fov(struct rc_renderer *renderer, double fov) {
 
 void rc_renderer_set_resolution(struct rc_renderer *renderer, int resolution) {
 	rc_log(RC_LOG_INFO, "Setting renderer quality to %i...", resolution);
-	RC_ASSERT(resolution > 1);
+	RC_ASSERT(resolution >= 1);
 	renderer->num_columns = renderer->aspect * resolution;
 	renderer->num_rows = resolution;
 	rc_renderer_internal_resize_opengl_buffers(renderer);
 }
 
 void rc_renderer_set_wall_textures(struct rc_renderer *renderer, struct rc_texture **wall_textures) {
-	rc_log(RC_LOG_INFO, "Setting renderer wall textures %i...");
+	rc_log(RC_LOG_INFO, "Setting renderer wall textures...");
 	renderer->wall_textures = wall_textures;
 }
 

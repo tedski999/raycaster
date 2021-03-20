@@ -54,6 +54,10 @@ struct rc_window *rc_window_create(const char *title, int width, int height, boo
 		glfwSetInputMode(window->window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	rc_window_set_vsync_enabled(window, is_vsync_enabled);
 
+	// Update mouse position to be relative to the new window
+	rc_window_update(window);
+	rc_input_update();
+
 	return window;
 }
 
